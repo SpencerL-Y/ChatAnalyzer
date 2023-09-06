@@ -26,6 +26,7 @@ class chat_interface:
         openai.api_base = "https://api.aiproxy.io/v1"
 
     # reserved for latter if key for openai can be obtained, currently we are using the aiproxy
+    # aiproxy is not free
     def set_up_default_configs(self):
         openai.api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt"
         openai.api_base = "https://api.aiproxy.io/v1"
