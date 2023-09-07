@@ -12,6 +12,7 @@ def get_filename_firstline(function_name):
             print("./linux/" + items[1])
             print(final)
             return ["./linux/" + items[1], final]
+    return ["NOT FOUND", "NOT_FOUND"]
         
 if __name__ == "__main__":
     get_filename_firstline()
