@@ -1,5 +1,8 @@
 import openai
 import os, re
+import sys
+import extract_func_body as efb
+import function_info_arrange as finfo
 
 
 # chat interface 
@@ -45,14 +48,16 @@ class chat_interface:
     def ask_for_setting_configuration(self):
         description = "In the following you are going to act like a code analyzer to analyze a function, the output format should be as follows: \
             FUNC_NAME: [Function Name] \
-            GLOBAL_VARS: {(v1, type1), (v2, type2)...} \
-            FUNC_INTERFACE_VAR: {(ifv1, type1), (ifv2, type2)...} \
-            FUNC_CALLED: {func1((arg1, type1), (arg2, type2))...} \
-            IMPORTANT_FUNC: {func1((arg1, type1), (arg2, type2))...}\
+            GLOBAL_VARS: {v1 (type1), v2 (type2)...} \
+            FUNC_INTERFACE_VAR: {ifv1 (type1), ifv2 (type2)...} \
+            FUNC_CALLED: {func1(arg1, arg2...)...} \
+            IMPORTANT_FUNC: {func1, func2...}\
             where \
             \"type\" denote the type of the variable, \
             \"v1, v2, ifv1, arg1\" are the variable names or arguments names and\
-            \"func1\" are the names of function called or important function"
+            \"func1\" are the names of function called or important function\n\
+            Please generate only this format with no descriptive statements\n\
+            If FUNC_NAME is SYSCALL_DEFINE*, use the name of the first argument as FUNC_NAME\n"
         self.ask_question_and_record(description)
 
     def ask_analyze_function(self, content):
@@ -64,20 +69,80 @@ class chat_interface:
         )
         answer = res.choices[0].message
         self.msg_list.append(answer)
+        return answer
+    
+    def ask_correlation_analysis(self):
+        return
 
 
+
+def get_entry_functions():
+    f = open("./original_syscall_definitions.txt")
+    lines = f.readlines()
+    result = []
+    curr_func = ""
+    for line in lines:
+        if line == "===\n":
+            result.append(curr_func)
+            curr_func = ""
+        else:
+            curr_func += line
+    print("original syscall result:")
+    return result
+
+
+def analyze_syscall(interface, func_str, analyzing_log, analyzing_result, curr_depth, max_depth):
+    print(" ======== analyzing function ========= \n " + func_str + " ======== ========\n")
+    if curr_depth == max_depth:
+        return
+    content = func_str
+    answer = interface.ask_analyze_function(content)
+    analyzing_log.append({"role" : "user", "content" : content})
+    analyzing_log.append({"role" : "assistant", "content" : answer})
+    print(" ======== answer ========= ") 
+    print(answer.content)
+    print(" ======== ========")
+    lined_answer = answer.content.splitlines()
+    func_info = finfo.get_func_ds(lined_answer)
+    analyzing_result[func_info.func_name] = func_info
+    funcs_ds_called = func_info.extract_func_called()
+    funcs_called = []
+    for f in funcs_ds_called:
+        funcs_called.append(f.func_name)
+    funcs_called_str = []
+    for f in funcs_called:
+        func_body = efb.extract_function_body(f)
+        if func_body == "NOT_FOUND":
+            continue
+        funcs_called_str.append(func_body)
+    for b in funcs_called_str:
+        analyze_syscall(interface, b, analyzing_log, analyzing_result, curr_depth + 1, max_depth)        
 
 if __name__ == '__main__':
     print("main")
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
     interface.ask_for_setting_configuration()
-    content = "\
-    SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)\
+
+
+    # entries = get_entry_functions()
+    entries = []
+    entries.append("SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,\
+		unsigned long, prot, unsigned long, flags,\
+		unsigned long, fd, unsigned long, off)\
 {\
-	return ksys_lseek(fd, offset, whence);\
-}\
-"
-    interface.ask_analyze_function(content)
+	if (offset_in_page(off) != 0)\
+		return -EINVAL;\
+	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);\
+}")
+                   
+    analyzing_depth = sys.argv[1]
+    analyzing_log = []
+    analyzing_result = {}
+    for p in entries:
+        analyze_syscall(interface, p, analyzing_log, analyzing_result, 0, int(analyzing_depth))
+
+
+        
     interface.show_conversations()
                 

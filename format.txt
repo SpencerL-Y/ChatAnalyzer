@@ -64,7 +64,6 @@ FUNC_INTERFACE_VAR: {fd (unsigned int), buf (char __user *), count (size_t)}
 FUNC_CALLED: {ksys_read(fd, buf, count)}
 IMPORTANT_FUNC: {ksys_read}
 ==
-Copy code
 FUNC_NAME: "write"
 GLOBAL_VARS: {}
 FUNC_INTERFACE_VAR: {fd (unsigned int), buf (const char __user *), count (size_t)}
@@ -143,9 +142,3 @@ FUNC_INTERFACE_VAR: {fd (unsigned int)}
 FUNC_CALLED: {do_fsync(fd, 0)}
 IMPORTANT_FUNC: {do_fsync}
 ===
-
-FUNC_NAME: [Function Name]
-GLOBAL_VARS: {(v1, type1), (v2, type2)...}
-FUNC_INTERFACE_VAR: {(ifv1, type1), (ifv2, type2)...}
-FUNC_CALLED: {func1((arg1, type1), (arg2, type2))...}
-IMPORTANT_FUNC: {func1((arg1, type1), (arg2, type2))...}
