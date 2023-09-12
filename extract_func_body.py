@@ -33,7 +33,10 @@ if __name__ == "__main__":
     f.close()
 
 def extract_function_body(func_name):
+    print("extract func body for: " + func_name)
     search_result = ga.get_filename_firstline(func_name)
+    if(search_result[0] == "NOT FOUND"):
+        return "NOT FOUND"
     filename = search_result[0]
     function_firstline_str = search_result[1]
     function_str = ""

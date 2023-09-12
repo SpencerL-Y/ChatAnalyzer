@@ -24,9 +24,10 @@ class FuncClass():
         print(result)
         return result
     def extract_func_called(self):
+        print("extrac_func_called")
         funcs = self.func_called.split("),")
-        print("func_called: ")
-        # print(funcs)
+        print("funcs_called: ")
+        print(funcs)
         striped_funcs = []
         i = 0
         for f in funcs:
@@ -69,55 +70,88 @@ class SyscallNode():
         self.interface_args = interface_argtypes
         self.all_func_called = all_func_called
 
-#列表存储函数对象
-funcList = []
-funcName = ""
-globalVars = ""
-funcInterfaceVar = ""
-funcCalled = ""
-importantFunc = ""
 
-f = open("./format.txt", "r", encoding="utf-8")
+def get_fs_syscall_funclist():
+    funcList = []
+    funcName = ""
+    globalVars = ""
+    funcInterfaceVar = ""
+    funcCalled = ""
+    importantFunc = ""
 
-lines = f.readlines()
+    f = open("./format.txt", "r", encoding="utf-8")
 
-for line in lines:
-    
-    if line[0:6]=="FUNC_N":
-        funcName=line[12:-2]
-        #print(line[12:-2])
-    elif line[0:6]=="GLOBAL":
-        globalVars=line[14:-2]
-        #print(line[14:-2])
-    elif line[0:6]=="FUNC_I":
-        funcInterfaceVar=line[21:-2]
-        #print(line[21:-2])
-    elif line[0:6]=="FUNC_C":   
-        funcCalled=line[14:-2]
-        #print(line[14:-2])
-    elif line[0:6]=="IMPORT":
-        #封装
-        importantFunc=line[17:-2]
-        #print(line[17:-2])
-        func = FuncClass(funcName,globalVars,funcInterfaceVar,funcCalled,importantFunc)
-        #func.get_funcDescription()
-        funcList.append(func)
-    else:
-        continue
+    lines = f.readlines()
 
-f.close()
+    for line in lines:
 
-#test
-for func in funcList:
-    print("TOTAL DESCRIPTION:")
-    func.get_func_desc()
-    print("-----------------------------------")
-    print("GLOBAL VARS:")
-    func.extract_global_vars()
-    print("-----------------------------------")
-    print("INTERFACE VARS:")
-    func.extract_interface_vars()
-    print("-----------------------------------")
-    print("FUNC CALLED:")
-    func.extract_func_called()
+        if line[0:6]=="FUNC_N":
+            funcName=line[12:-2]
+            #print(line[12:-2])
+        elif line[0:6]=="GLOBAL":
+            globalVars=line[14:-2]
+            #print(line[14:-2])
+        elif line[0:6]=="FUNC_I":
+            funcInterfaceVar=line[21:-2]
+            #print(line[21:-2])
+        elif line[0:6]=="FUNC_C":   
+            funcCalled=line[14:-2]
+            #print(line[14:-2])
+        elif line[0:6]=="IMPORT":
+            #封装
+            importantFunc=line[17:-2]
+            #print(line[17:-2])
+            func = FuncClass(funcName,globalVars,funcInterfaceVar,funcCalled,importantFunc)
+            #func.get_funcDescription()
+            funcList.append(func)
+        else:
+            continue
 
+    f.close()
+    return funcList
+
+def get_func_ds(lines):
+    globalVars = ""
+    funcInterfaceVar = ""
+    funcCalled = ""
+    importantFunc = ""
+    for line in lines:
+
+        if line[0:6]=="FUNC_N":
+            funcName=line[12:-2]
+            #print(line[12:-2])
+        elif line[0:6]=="GLOBAL":
+            globalVars=line[14:-2]
+            #print(line[14:-2])
+        elif line[0:6]=="FUNC_I":
+            funcInterfaceVar=line[21:-2]
+            #print(line[21:-2])
+        elif line[0:6]=="FUNC_C":   
+            funcCalled=line[14:-2]
+            #print(line[14:-2])
+        elif line[0:6]=="IMPORT":
+            #封装
+            importantFunc=line[17:-2]
+            #print(line[17:-2])
+            func = FuncClass(funcName,globalVars,funcInterfaceVar,funcCalled,importantFunc)
+            #func.get_funcDescription()
+            return func
+        else:
+            continue
+    assert(False)
+
+if __name__ == "__main__":
+    funcList = get_fs_syscall_funclist()
+    #test
+    for func in funcList:
+        print("TOTAL DESCRIPTION:")
+        func.get_func_desc()
+        print("-----------------------------------")
+        print("GLOBAL VARS:")
+        func.extract_global_vars()
+        print("-----------------------------------")
+        print("INTERFACE VARS:")
+        func.extract_interface_vars()
+        print("-----------------------------------")
+        print("FUNC CALLED:")
+        func.extract_func_called()
