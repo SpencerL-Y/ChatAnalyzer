@@ -92,7 +92,8 @@ def get_entry_functions():
 
 
 def analyze_syscall(interface, func_str, analyzing_log, analyzing_result, curr_depth, max_depth):
-    print(" ======== analyzing function ========= \n " + func_str + " ======== ========\n")
+    print(" ======== analyzing function ========= \n " + func_str)
+    print(" ======== ========\n")
     if curr_depth == max_depth:
         return
     content = func_str
@@ -112,7 +113,7 @@ def analyze_syscall(interface, func_str, analyzing_log, analyzing_result, curr_d
     funcs_called_str = []
     for f in funcs_called:
         func_body = efb.extract_function_body(f)
-        if func_body == "NOT_FOUND":
+        if func_body == "NOT FOUND":
             continue
         funcs_called_str.append(func_body)
     for b in funcs_called_str:
