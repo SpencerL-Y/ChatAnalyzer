@@ -24,7 +24,7 @@ class FuncClass():
         print(result)
         return result
     def extract_func_called(self):
-        print("extrac_func_called")
+        print("extract_func_called")
         funcs = self.func_called.split("),")
         print("funcs_called: ")
         print(funcs)
@@ -40,6 +40,8 @@ class FuncClass():
         all_func_called = []
         for f in striped_funcs:
             name_args = f.split("(")
+            if len(name_args) <= 1:
+                continue
             func_name = name_args[0]
             args = name_args[1].split(")")
             striped_args = []

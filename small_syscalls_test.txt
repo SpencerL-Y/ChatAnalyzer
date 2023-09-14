@@ -1,0 +1,59 @@
+SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,
+		unsigned long, prot, unsigned long, flags,
+		unsigned long, fd, unsigned long, off)
+{
+	if (offset_in_page(off) != 0)
+		return -EINVAL;
+
+	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
+}
+
+===
+
+SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+{
+	struct fd f = fdget(fd);
+	int error;
+
+	if (!f.file)
+		return -EBADF;
+
+	error = security_file_ioctl(f.file, cmd, arg);
+	if (error)
+		goto out;
+
+	error = do_vfs_ioctl(f.file, fd, cmd, arg);
+	if (error == -ENOIOCTLCMD)
+		error = vfs_ioctl(f.file, cmd, arg);
+
+out:
+	fdput(f);
+	return error;
+}
+
+===
+
+SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+{	
+	struct fd f = fdget_raw(fd);
+	long err = -EBADF;
+
+	if (!f.file)
+		goto out;
+
+	if (unlikely(f.file->f_mode & FMODE_PATH)) {
+		if (!check_fcntl_cmd(cmd))
+			goto out1;
+	}
+
+	err = security_file_fcntl(f.file, cmd, arg);
+	if (!err)
+		err = do_fcntl(fd, cmd, arg, f.file);
+
+out1:
+ 	fdput(f);
+out:
+	return err;
+}
+
+===
