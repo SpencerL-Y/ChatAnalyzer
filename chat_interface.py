@@ -46,16 +46,18 @@ class chat_interface:
         return answer
     
     def ask_for_setting_configuration(self):
-        description = "In the following you are going to act like a code analyzer to analyze a function, the output format should be as follows: \
-            FUNC_NAME: [Function Name] \
-            GLOBAL_VARS: {v1 (type1), v2 (type2)...} \
-            FUNC_INTERFACE_VAR: {ifv1 (type1), ifv2 (type2)...} \
-            FUNC_CALLED: {func1(arg1, arg2...)...} \
-            IMPORTANT_FUNC: {func1, func2...}\
+        description = "In the following you are going to act like a code analyzer to analyze a function, the output format should be as follows:\n \
+            FUNC_NAME: funcname\n \
+            GLOBAL_VARS: {v1 (type1), v2 (type2)...}\n \
+            FUNC_INTERFACE_VAR: {ifv1 (type1), ifv2 (type2)...}\n \
+            FUNC_CALLED: {func1(arg1, arg2...)...}\n \
+            IMPORTANT_FUNC: {func1, func2...}\n\
             where \
+            \"funcname\" is the name of analyzed function or the name of first argument when the function is SYSCALL_DEFINE\
             \"type\" denote the type of the variable, \
             \"v1, v2, ifv1, arg1\" are the variable names or arguments names and\
             \"func1\" are the names of function called or important function\n\
+            FUNC_CALLED must have arguments\n.\
             Please generate only this format with no descriptive statements\n\
             If FUNC_NAME is SYSCALL_DEFINE*, use the name of the first argument as FUNC_NAME\n"
         self.ask_question_and_record(description)
@@ -71,13 +73,46 @@ class chat_interface:
         self.msg_list.append(answer)
         return answer
     
-    def ask_correlation_analysis(self):
-        return
+    def ask_relation_analysis(self):
+        description = "Based on the analysis above, now you are going to construct a table where rows and columns are the syscalls (the first argument of SYSCALL_DEFINE) you analyzed\n\
+            The table represent the relation between any two syscall where each entry is an integer ranged between 0 to 100\n\
+            0 represents these two syscalls have no relation, and 100 represent the first syscall influeces the second strongly\n\
+            the influece in defined by considering following factors: 1. the returned value of the first syscall has the same type\
+            of the some argument in the second syscall. 2. in the procedure of the first syscall, it changes some global variables that may influece the executing procedure of the second syscall.\n\
+            Please generate the table in a formatted table in the following format with descriptive statements:\
+            SYSCALLS: [syscall_name1], [syscall_name2] ....\n\
+            TABLE_ENTRIES: (i,j,weight)\n\
+            where SYSCALLS denote the sequence of syscalls considered, and [syscall_name1] denote the name of a syscall\n\
+            TABLE_ENTRIES list all table entries where (i,j,weight) means [syscall_namei] influence [syscall_namej] with the factor number weight, which ranges between 0 and 100\n\
+        "
+        self.msg_list.append({"role": "user", "content": description})
+        res = openai.ChatCompletion.create(
+            model = "gpt-3.5-turbo",
+            messages=self.msg_list
+        )
+        answer = res.choices[0].message
+        self.msg_list.append(answer)
+        print(answer)
+        return answer
 
 
 
 def get_entry_functions():
     f = open("./original_syscall_definitions.txt")
+    lines = f.readlines()
+    result = []
+    curr_func = ""
+    for line in lines:
+        if line == "===\n":
+            result.append(curr_func)
+            curr_func = ""
+        else:
+            curr_func += line
+    print("original syscall result:")
+    return result
+
+def get_test_entry_functions():
+    f = open("./small_syscalls_test.txt")
     lines = f.readlines()
     result = []
     curr_func = ""
@@ -127,15 +162,16 @@ if __name__ == '__main__':
 
 
     # entries = get_entry_functions()
-    entries = []
-    entries.append("SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,\
-		unsigned long, prot, unsigned long, flags,\
-		unsigned long, fd, unsigned long, off)\
-{\
-	if (offset_in_page(off) != 0)\
-		return -EINVAL;\
-	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);\
-}")
+#     entries = []
+#     entries.append("SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,\
+# 		unsigned long, prot, unsigned long, flags,\
+# 		unsigned long, fd, unsigned long, off)\
+# {\
+# 	if (offset_in_page(off) != 0)\
+# 		return -EINVAL;\
+# 	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);\
+# }")
+    entries = get_test_entry_functions()
                    
     analyzing_depth = sys.argv[1]
     analyzing_log = []
@@ -143,7 +179,7 @@ if __name__ == '__main__':
     for p in entries:
         analyze_syscall(interface, p, analyzing_log, analyzing_result, 0, int(analyzing_depth))
 
-
+    interface.ask_relation_analysis()
         
     interface.show_conversations()
                 
