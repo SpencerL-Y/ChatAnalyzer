@@ -3,6 +3,7 @@ import os, re
 import sys
 import extract_func_body as efb
 import function_info_arrange as finfo
+import make_syscall_and_relation_file as mkrel
 
 
 # chat interface 
@@ -80,10 +81,13 @@ class chat_interface:
             the influece in defined by considering following factors: 1. the returned value of the first syscall has the same type\
             of the some argument in the second syscall. 2. in the procedure of the first syscall, it changes some global variables that may influece the executing procedure of the second syscall.\n\
             Please generate the table in a formatted table in the following format with descriptive statements:\
+            Use the format:\n\
             SYSCALLS: [syscall_name1], [syscall_name2] ....\n\
-            TABLE_ENTRIES: (i,j,weight)\n\
+            TABLE_ENTRIES: \n\
+            (i, j)\n\
             where SYSCALLS denote the sequence of syscalls considered, and [syscall_name1] denote the name of a syscall\n\
-            TABLE_ENTRIES list all table entries where (i,j,weight) means [syscall_namei] influence [syscall_namej] with the factor number weight, which ranges between 0 and 100\n\
+            TABLE_ENTRIES list table entries where the existence of (i,j) means [syscall_namei] influence [syscall_namej] with some specific arguments, we require that i is inequal to j and if (i, j) is an entry then (j, i) should not appear in the entries. If the influencial relation is not sure, do not add the entry.\n\
+            please only generate the format with no descriptive text\n\
         "
         self.msg_list.append({"role": "user", "content": description})
         res = openai.ChatCompletion.create(
@@ -93,7 +97,7 @@ class chat_interface:
         answer = res.choices[0].message
         self.msg_list.append(answer)
         print(answer)
-        return answer
+        return answer.content
 
 
 
@@ -179,7 +183,8 @@ if __name__ == '__main__':
     for p in entries:
         analyze_syscall(interface, p, analyzing_log, analyzing_result, 0, int(analyzing_depth))
 
-    interface.ask_relation_analysis()
-        
+    relation_result = interface.ask_relation_analysis()
+    print("relation_result: " + relation_result)
+    mkrel.make_syscall_relation_file(relation_result)
     interface.show_conversations()
                 
