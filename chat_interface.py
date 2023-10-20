@@ -63,6 +63,26 @@ class chat_interface:
             If FUNC_NAME is SYSCALL_DEFINE*, use the name of the first argument as FUNC_NAME\n"
         self.ask_question_and_record(description)
 
+    def ask_for_setting_configuration_with_more_detail(self):
+        description = "In the following you are going to act like a code analyzer to analyze a function, the output format should be as follows:\n \
+            FUNC_NAME: funcname\n \
+            GLOBAL_VARS_USED: {v1 (type1), v2 (type2)...}\n \
+            GLOBAL_VARS_CHANGED: {v1 (type1), v2 (type2) ...}\
+            FUNC_INTERFACE_VAR: {ifv1 (type1), ifv2 (type2)...}\n \
+            FUNC_CALLED: {func1(arg1, arg2...)...}\n \
+            IMPORTANT_FUNC: {func1, func2...}\n\
+            where \
+            \"funcname\" is the name of analyzed function or the name of first argument when the function is SYSCALL_DEFINE\
+            \"type\" denote the type of the variable, \
+            \"v1, v2, ifv1, arg1\" are the variable names or arguments names and\
+            \"func1\" are the names of function called or important function\n\
+            FUNC_CALLED must have arguments\n.\
+            GLOBAL_VARS_USED stores the global vars in linux source code that are used within this function\n\
+            GLOBAL_VARS_CHANGED stores the global vars in linux source code that are modified within this function\n\
+            Please generate only this format with no descriptive statements\n\
+            If FUNC_NAME is SYSCALL_DEFINE*, use the name of the first argument as FUNC_NAME\n"
+        self.ask_question_and_record(description)
+
     def ask_analyze_function(self, content):
         ask_str = "analyze this function: \n" + content
         self.msg_list.append({"role": "user", "content": ask_str})
