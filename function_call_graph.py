@@ -27,7 +27,12 @@ class Func_call_graph():
         return candidates_roots
     
     def get_funcs_called_by_node(self, func_body):
+        result = set()
+        result.add(func_body)
         if not func_body in self.func_nodes:
-            
-        
-if __name__ == "__main__":
+            return result
+        else:
+            for func in self.call_edges[func_body]:
+                result = result.union(self.get_funcs_called_by_node(func))
+            return result
+
