@@ -62,6 +62,12 @@ def make_syscall_relation_file(string):
     for e in write_entries:
         f.write(e)
     
+def add_simple_syscall_relation_entries(first_syscall, second_syscall):
+    detailed_entries = construct_call_name_table_str(first_syscall, second_syscall)
+    f = open("relation.txt", "w+")
+    for e in detailed_entries:
+        f.write(e)
+    f.close()
 
 def construct_call_name_table_str(first_syscall, second_syscall):
     print(first_syscall + " | " + second_syscall)
@@ -84,7 +90,7 @@ def construct_call_name_table_str(first_syscall, second_syscall):
                 first_set.append(line[:-1])
             elif line_split[0] == second_syscall:
                 second_set.append(line[:-1])
-    
+
     for first_name in first_set:
         for second_name in second_set:
             result_entries.append(first_name + " " + second_name + "\n")

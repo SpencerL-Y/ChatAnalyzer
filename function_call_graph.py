@@ -35,4 +35,18 @@ class Func_call_graph():
             for func in self.call_edges[func_body]:
                 result = result.union(self.get_funcs_called_by_node(func))
             return result
+        
+    def print_graph(self):
+        print("nodes ======= ")
+        for n in self.func_nodes:
+            print("node -----" + str(self.get_index(n)))
+            print("edges:")
+            for tn in self.call_edges[n]:
+                print(str(self.get_index(n)) + " -> " + str(self.get_index(tn)))
+
+    def get_index(self, c):
+        node_array = []
+        for n in self.func_nodes:
+            node_array.append(n)
+        return node_array.index(c)
 
