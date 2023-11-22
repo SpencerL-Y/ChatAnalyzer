@@ -171,10 +171,9 @@ def get_test_entry_functions():
     print("original syscall result:")
     return result
 
-def construct_func_call_graph_for_syscalls(interface, syscall_set):
+def construct_func_call_graph_for_syscalls(interface, syscall_set, max_depth):
     is_init = False
     curr_depth = 0
-    max_depth = 1
     curr_call_graph = fcg.Func_call_graph([])
     for s in syscall_set:
         analyze_syscall_no_history(interface, s, curr_call_graph, curr_depth, max_depth, is_init)
@@ -243,8 +242,8 @@ def analyze_syscall_no_history(interface, func_str, curr_call_graph, curr_depth,
 if __name__ == '__main__':
 
     version1 = False
-    version2 = False
-    version3 = True
+    version2 = True
+    version3 = False
     print("main")
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
@@ -275,21 +274,22 @@ if __name__ == '__main__':
         mkrel.make_syscall_relation_file(relation_result)
         interface.show_conversations()
     elif version2:
+        analyzing_depth = sys.argv[1]
         entries = get_test_entry_functions()
-        cg = construct_func_call_graph_for_syscalls(interface, entries)
+        cg = construct_func_call_graph_for_syscalls(interface, entries, int(analyzing_depth))
         cg.print_graph()
     elif version3:
-        all_syscall_names = ["read", "write", "open", "close", "stat", "fstat", "lstat", "poll", "lseek", "mmap", "brk", "ioctl", "select"]
+        all_syscall_names = ["read", "write", "open", "close", "stat", "poll", "lseek", "mmap", "ioctl"]
         all_syscall_names_trial = ["read", "write"]
         relation_pairs = []
-        for syscall1 in all_syscall_names_trial:
-            for syscall2 in all_syscall_names_trial:
+        for syscall1 in all_syscall_names:
+            for syscall2 in all_syscall_names:
                 answer = interface.ask_simple_relation_setting_syscall_relation("(" + syscall1 + ", " + syscall2 + ")")
                 parse_result = rel_parser.parse(answer)
                 if parse_result[0]:
                     relation_pairs.append(parse_result[1:3])
         
-        mkrel.make_disabled_syscall_file(all_syscall_names_trial)
+        mkrel.make_disabled_syscall_file(all_syscall_names)
         for p in relation_pairs:
             print(p)
             mkrel.add_simple_syscall_relation_entries(p[0], p[1])

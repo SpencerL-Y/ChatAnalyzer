@@ -64,22 +64,22 @@ def make_syscall_relation_file(string):
     
 def add_simple_syscall_relation_entries(first_syscall, second_syscall):
     detailed_entries = construct_call_name_table_str(first_syscall, second_syscall)
-    f = open("relation.txt", "w+")
+    f = open("relation.txt", "a")
     for e in detailed_entries:
         f.write(e)
     f.close()
 
 def construct_call_name_table_str(first_syscall, second_syscall):
-    print(first_syscall + " | " + second_syscall)
+    # print(first_syscall + " | " + second_syscall)
     result_entries = []
     f = open("enabled_calls.txt", "r")
     lines = f.readlines()
     first_set = []
     second_set = []
     for line in lines:
-        print(line[:-1])
+        # print(line[:-1])
         line_split = line[:-1].split("$")
-        print("call name: " + line_split[0])
+        # print("call name: " + line_split[0])
         if len(line_split) == 1:
             if(line_split[0] == first_syscall):
                 first_set.append(line[:-1])
