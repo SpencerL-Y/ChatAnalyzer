@@ -6,8 +6,9 @@ import function_info_arrange as finfo
 import make_syscall_and_relation_file as mkrel
 import function_call_graph as fcg
 import relation_parser as rel_parser
+from openai import OpenAI
 
-global_model = "gpt-4"
+global_model = "gpt-4-turbo-2024-04-09"
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -28,19 +29,22 @@ class chat_interface:
     
 
     def set_up_aiproxy_configs(self):
-        openai.api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt"
-        openai.api_base = "https://api.aiproxy.io/v1"
+        self.client = OpenAI(
+            api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt",
+            base_url="https://api.aiproxy.io/v1"
+        )
 
     # reserved for latter if key for openai can be obtained, currently we are using the aiproxy
     # aiproxy is not free
     def set_up_default_configs(self):
-        openai.api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt"
-        openai.api_base = "https://api.aiproxy.io/v1"
-
+        self.client = OpenAI(
+            api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt",
+            base_url="https://api.aiproxy.io/v1"
+        )
 
     def ask_question_and_record(self, content):
         self.msg_list.append({"role": "user", "content": content})
-        res = openai.ChatCompletion.create(
+        res = self.client.chat.completions.create(
             model=global_model,
             messages=[{"role": "user", "content": content}]
         )
@@ -84,6 +88,26 @@ class chat_interface:
             Please generate only this format with no descriptive statements\n\
             If FUNC_NAME is SYSCALL_DEFINE*, use the name of the first argument as FUNC_NAME\n"
         self.ask_question_and_record(description)
+
+    def ask_for_function_callgraph_with_body(self, funcname, linux_path):
+        description = "Based on your knowledge on linux kernel, what functions in linux kernel could reach the following function: \n"
+        function_body = efb.extract_func_body_linux_path(funcname, linux_path)
+        print(function_body)
+        description += function_body
+        description  += "Generate a list of functions that can reach the above function in the following format: \n[func1, func2, func3, ....]\n the expected output is the above format with NO descriptions"
+        answer = self.ask_question_and_record(description)
+        print(answer)
+        return answer
+    
+    def ask_for_syscalls_can_reach_functions(self, funcname):
+        description = "Based on your knowledge on linux kernel, what syscall variant may reach the following function: \n"
+        description += funcname
+        description += "Generate a list of functions that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions"
+        answer = self.ask_question_and_record(description)
+        print(answer)
+        return answer
+
+        
     
     def ask_simple_relation_setting_syscall_relation(self, content):
         ask_str = content
@@ -96,7 +120,7 @@ class chat_interface:
             REASON: your analysis\n"
         simple_list.append({"role": "user", "content": description})
         simple_list.append({"role": "user", "content": ask_str})
-        res = openai.ChatCompletion.create(
+        res = self.client.chat.completions.create(
             model=global_model,
             messages=simple_list
         )
@@ -108,7 +132,7 @@ class chat_interface:
     def ask_analyze_function(self, content):
         ask_str = "analyze this function: \n" + content
         self.msg_list.append({"role": "user", "content": ask_str})
-        res = openai.ChatCompletion.create(
+        res = openai.chat.completions.create(
             model=global_model,
             messages=self.msg_list
         )
@@ -132,7 +156,7 @@ class chat_interface:
             please only generate the format with no descriptive text\n\
         "
         self.msg_list.append({"role": "user", "content": description})
-        res = openai.ChatCompletion.create(
+        res = self.client.chat.completions.create(
             model = global_model,
             messages=self.msg_list
         )
@@ -242,11 +266,32 @@ def analyze_syscall_no_history(interface, func_str, curr_call_graph, curr_depth,
 if __name__ == '__main__':
 
     version1 = False
-    version2 = True
+    version2 = False
     version3 = False
+    experiment_on_chat_syscall_commit_change_analysis = True
+    extract_function = False
     print("main")
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
+    function_list = ["stable_page_flags", "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"]
+    i = 111111
+    if experiment_on_chat_syscall_commit_change_analysis:
+        result = ""
+        for name in function_list:
+            # result += str(i) + " function analysis: ----------------------------\n"
+            # print(str(i) + " function analysis: ----------------------------")
+            # result += interface.ask_for_function_callgraph_with_body(name, "./linux/").content + "\n"
+            result += str(i) + " syscall analysis: ----------------------------\n"
+            print(str(i) + " syscall analysis: ----------------------------")
+            result += interface.ask_for_syscalls_can_reach_functions(name).content + "\n"
+            i += 111111
+        print("RESULT: ")
+        print(result)
+
+    if extract_function:
+        result = efb.extract_function_body(sys.argv[1])
+        print(result)
+
     if version1 or version2:
         interface.ask_for_fcg_setting_configuration()
 
