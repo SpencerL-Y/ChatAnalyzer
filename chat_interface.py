@@ -8,7 +8,7 @@ import function_call_graph as fcg
 import relation_parser as rel_parser
 from openai import OpenAI
 
-global_model = "gpt-4-turbo-2024-04-09"
+global_model = "gpt-4o"
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -268,8 +268,8 @@ if __name__ == '__main__':
     version1 = False
     version2 = False
     version3 = False
-    experiment_on_chat_syscall_commit_change_analysis = True
-    extract_function = False
+    experiment_on_chat_syscall_commit_change_analysis = False
+    extract_function = True
     print("main")
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
