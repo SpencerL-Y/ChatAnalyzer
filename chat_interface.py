@@ -6,7 +6,9 @@ import function_info_arrange as finfo
 import make_syscall_and_relation_file as mkrel
 import function_call_graph as fcg
 import relation_parser as rel_parser
+import extract_function_callpaths as callpath_gen
 from openai import OpenAI
+import time
 
 global_model = "gpt-4o"
 # chat interface 
@@ -100,12 +102,15 @@ class chat_interface:
         return answer
     
     def ask_for_syscalls_can_reach_functions(self, funcname):
-        description = "Based on your knowledge on linux kernel, what syscall variant may reach the following function: \n"
-        description += funcname
-        description += "Generate a list of functions that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions"
-        answer = self.ask_question_and_record(description)
-        print(answer)
-        return answer
+        description = "Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: \n"
+        description += funcname + "\n"
+        call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
+        description += call_paths
+        description += "Generate a list of functions that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        # answer = self.ask_question_and_record(description)
+        # print(answer)
+        # return answer
+        return description
 
         
     
@@ -268,14 +273,17 @@ if __name__ == '__main__':
     version1 = False
     version2 = False
     version3 = False
-    experiment_on_chat_syscall_commit_change_analysis = False
-    extract_function = True
+    experiment_on_chat_syscall_commit_change_analysis = True
+    extract_function = False
     print("main")
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
-    function_list = ["stable_page_flags", "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"]
+    function_list = [
+        #"stable_page_flags", 
+        "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"]
     i = 111111
     if experiment_on_chat_syscall_commit_change_analysis:
+        time_start = time.time()
         result = ""
         for name in function_list:
             # result += str(i) + " function analysis: ----------------------------\n"
@@ -283,10 +291,16 @@ if __name__ == '__main__':
             # result += interface.ask_for_function_callgraph_with_body(name, "./linux/").content + "\n"
             result += str(i) + " syscall analysis: ----------------------------\n"
             print(str(i) + " syscall analysis: ----------------------------")
-            result += interface.ask_for_syscalls_can_reach_functions(name).content + "\n"
+            # result += interface.ask_for_syscalls_can_reach_functions(name).content + "\n"
+            result = interface.ask_for_syscalls_can_reach_functions(name)
+            f = open("testing.txt", "a")
+            f.write(result)
+            f.close()
             i += 111111
         print("RESULT: ")
         print(result)
+        time_end = time.time()
+        print("TIME CONSUMED: " + str(time_end - time_start))
 
     if extract_function:
         result = efb.extract_function_body(sys.argv[1])
