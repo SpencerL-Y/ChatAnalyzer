@@ -1,0 +1,961 @@
+Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+fscontext_create_fd
+SYSCALL_DEFINE2(fsopen, const char __user *, _fs_name, unsigned int, flags)
+{
+	struct file_system_type *fs_type;
+	struct fs_context *fc;
+	const char *fs_name;
+	int ret;
+
+	if (!may_mount())
+		return -EPERM;
+
+	if (flags & ~FSOPEN_CLOEXEC)
+		return -EINVAL;
+
+	fs_name = strndup_user(_fs_name, PAGE_SIZE);
+	if (IS_ERR(fs_name))
+		return PTR_ERR(fs_name);
+
+	fs_type = get_fs_type(fs_name);
+	kfree(fs_name);
+	if (!fs_type)
+		return -ENODEV;
+
+	fc = fs_context_for_mount(fs_type, 0);
+	put_filesystem(fs_type);
+	if (IS_ERR(fc))
+		return PTR_ERR(fc);
+
+	fc->phase = FS_CONTEXT_CREATE_PARAMS;
+
+	ret = fscontext_alloc_log(fc);
+	if (ret < 0)
+		goto err_fc;
+
+	return fscontext_create_fd(fc, flags & FSOPEN_CLOEXEC ? O_CLOEXEC : 0);
+
+err_fc:
+	put_fs_context(fc);
+	return ret;
+}
+SYSCALL_DEFINE3(fspick, int, dfd, const char __user *, path, unsigned int, flags)
+{
+	struct fs_context *fc;
+	struct path target;
+	unsigned int lookup_flags;
+	int ret;
+
+	if (!may_mount())
+		return -EPERM;
+
+	if ((flags & ~(FSPICK_CLOEXEC |
+		       FSPICK_SYMLINK_NOFOLLOW |
+		       FSPICK_NO_AUTOMOUNT |
+		       FSPICK_EMPTY_PATH)) != 0)
+		return -EINVAL;
+
+	lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
+	if (flags & FSPICK_SYMLINK_NOFOLLOW)
+		lookup_flags &= ~LOOKUP_FOLLOW;
+	if (flags & FSPICK_NO_AUTOMOUNT)
+		lookup_flags &= ~LOOKUP_AUTOMOUNT;
+	if (flags & FSPICK_EMPTY_PATH)
+		lookup_flags |= LOOKUP_EMPTY;
+	ret = user_path_at(dfd, path, lookup_flags, &target);
+	if (ret < 0)
+		goto err;
+
+	ret = -EINVAL;
+	if (target.mnt->mnt_root != target.dentry)
+		goto err_path;
+
+	fc = fs_context_for_reconfigure(target.dentry, 0, 0);
+	if (IS_ERR(fc)) {
+		ret = PTR_ERR(fc);
+		goto err_path;
+	}
+
+	fc->phase = FS_CONTEXT_RECONF_PARAMS;
+
+	ret = fscontext_alloc_log(fc);
+	if (ret < 0)
+		goto err_fc;
+
+	path_put(&target);
+	return fscontext_create_fd(fc, flags & FSPICK_CLOEXEC ? O_CLOEXEC : 0);
+
+err_fc:
+	put_fs_context(fc);
+err_path:
+	path_put(&target);
+err:
+	return ret;
+}
+static int fscontext_create_fd(struct fs_context *fc, unsigned int o_flags)
+{
+	int fd;
+
+	fd = anon_inode_getfd("[fscontext]", &fscontext_fops, fc,
+			      O_RDWR | o_flags);
+	if (fd < 0)
+		put_fs_context(fc);
+	return fd;
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+memfd_fcntl
+SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+{	
+	struct fd f = fdget_raw(fd);
+	long err = -EBADF;
+
+	if (!f.file)
+		goto out;
+
+	if (unlikely(f.file->f_mode & FMODE_PATH)) {
+		if (!check_fcntl_cmd(cmd))
+			goto out1;
+	}
+
+	err = security_file_fcntl(f.file, cmd, arg);
+	if (!err)
+		err = do_fcntl(fd, cmd, arg, f.file);
+
+out1:
+ 	fdput(f);
+out:
+	return err;
+}
+COMPAT_SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
+		       compat_ulong_t, arg)
+{
+	return do_compat_fcntl64(fd, cmd, arg);
+}
+COMPAT_SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd,
+		       compat_ulong_t, arg)
+{
+	switch (cmd) {
+	case F_GETLK64:
+	case F_SETLK64:
+	case F_SETLKW64:
+	case F_OFD_GETLK:
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		return -EINVAL;
+	}
+	return do_compat_fcntl64(fd, cmd, arg);
+}
+static long do_compat_fcntl64(unsigned int fd, unsigned int cmd,
+			     compat_ulong_t arg)
+{
+	struct fd f = fdget_raw(fd);
+	struct flock flock;
+	long err = -EBADF;
+
+	if (!f.file)
+		return err;
+
+	if (unlikely(f.file->f_mode & FMODE_PATH)) {
+		if (!check_fcntl_cmd(cmd))
+			goto out_put;
+	}
+
+	err = security_file_fcntl(f.file, cmd, arg);
+	if (err)
+		goto out_put;
+
+	switch (cmd) {
+	case F_GETLK:
+		err = get_compat_flock(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_getlk(f.file, convert_fcntl_cmd(cmd), &flock);
+		if (err)
+			break;
+		err = fixup_compat_flock(&flock);
+		if (!err)
+			err = put_compat_flock(&flock, compat_ptr(arg));
+		break;
+	case F_GETLK64:
+	case F_OFD_GETLK:
+		err = get_compat_flock64(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_getlk(f.file, convert_fcntl_cmd(cmd), &flock);
+		if (!err)
+			err = put_compat_flock64(&flock, compat_ptr(arg));
+		break;
+	case F_SETLK:
+	case F_SETLKW:
+		err = get_compat_flock(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_setlk(fd, f.file, convert_fcntl_cmd(cmd), &flock);
+		break;
+	case F_SETLK64:
+	case F_SETLKW64:
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		err = get_compat_flock64(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_setlk(fd, f.file, convert_fcntl_cmd(cmd), &flock);
+		break;
+	default:
+		err = do_fcntl(fd, cmd, arg, f.file);
+		break;
+	}
+out_put:
+	fdput(f);
+	return err;
+}
+static long udmabuf_ioctl_create_list(struct file *filp, unsigned long arg)
+{
+	struct udmabuf_create_list head;
+	struct udmabuf_create_item *list;
+	int ret = -EINVAL;
+	u32 lsize;
+
+	if (copy_from_user(&head, (void __user *)arg, sizeof(head)))
+		return -EFAULT;
+	if (head.count > list_limit)
+		return -EINVAL;
+	lsize = sizeof(struct udmabuf_create_item) * head.count;
+	list = memdup_user((void __user *)(arg + sizeof(head)), lsize);
+	if (IS_ERR(list))
+		return PTR_ERR(list);
+
+	ret = udmabuf_create(filp->private_data, &head, list);
+	kfree(list);
+	return ret;
+}
+static long udmabuf_ioctl_create(struct file *filp, unsigned long arg)
+{
+	struct udmabuf_create create;
+	struct udmabuf_create_list head;
+	struct udmabuf_create_item list;
+
+	if (copy_from_user(&create, (void __user *)arg,
+			   sizeof(create)))
+		return -EFAULT;
+
+	head.flags  = create.flags;
+	head.count  = 1;
+	list.memfd  = create.memfd;
+	list.offset = create.offset;
+	list.size   = create.size;
+
+	return udmabuf_create(filp->private_data, &head, &list);
+}
+static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
+		struct file *filp)
+{
+	void __user *argp = (void __user *)arg;
+	int argi = (int)arg;
+	struct flock flock;
+	long err = -EINVAL;
+
+	switch (cmd) {
+	case F_DUPFD:
+		err = f_dupfd(argi, filp, 0);
+		break;
+	case F_DUPFD_CLOEXEC:
+		err = f_dupfd(argi, filp, O_CLOEXEC);
+		break;
+	case F_DUPFD_QUERY:
+		err = f_dupfd_query(argi, filp);
+		break;
+	case F_GETFD:
+		err = get_close_on_exec(fd) ? FD_CLOEXEC : 0;
+		break;
+	case F_SETFD:
+		err = 0;
+		set_close_on_exec(fd, argi & FD_CLOEXEC);
+		break;
+	case F_GETFL:
+		err = filp->f_flags;
+		break;
+	case F_SETFL:
+		err = setfl(fd, filp, argi);
+		break;
+#if BITS_PER_LONG != 32
+	/* 32-bit arches must use fcntl64() */
+	case F_OFD_GETLK:
+#endif
+	case F_GETLK:
+		if (copy_from_user(&flock, argp, sizeof(flock)))
+			return -EFAULT;
+		err = fcntl_getlk(filp, cmd, &flock);
+		if (!err && copy_to_user(argp, &flock, sizeof(flock)))
+			return -EFAULT;
+		break;
+#if BITS_PER_LONG != 32
+	/* 32-bit arches must use fcntl64() */
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		fallthrough;
+#endif
+	case F_SETLK:
+	case F_SETLKW:
+		if (copy_from_user(&flock, argp, sizeof(flock)))
+			return -EFAULT;
+		err = fcntl_setlk(fd, filp, cmd, &flock);
+		break;
+	case F_GETOWN:
+		/*
+		 * XXX If f_owner is a process group, the
+		 * negative return value will get converted
+		 * into an error.  Oops.  If we keep the
+		 * current syscall conventions, the only way
+		 * to fix this will be in libc.
+		 */
+		err = f_getown(filp);
+		force_successful_syscall_return();
+		break;
+	case F_SETOWN:
+		err = f_setown(filp, argi, 1);
+		break;
+	case F_GETOWN_EX:
+		err = f_getown_ex(filp, arg);
+		break;
+	case F_SETOWN_EX:
+		err = f_setown_ex(filp, arg);
+		break;
+	case F_GETOWNER_UIDS:
+		err = f_getowner_uids(filp, arg);
+		break;
+	case F_GETSIG:
+		err = filp->f_owner.signum;
+		break;
+	case F_SETSIG:
+		/* arg == 0 restores default behaviour. */
+		if (!valid_signal(argi)) {
+			break;
+		}
+		err = 0;
+		filp->f_owner.signum = argi;
+		break;
+	case F_GETLEASE:
+		err = fcntl_getlease(filp);
+		break;
+	case F_SETLEASE:
+		err = fcntl_setlease(fd, filp, argi);
+		break;
+	case F_NOTIFY:
+		err = fcntl_dirnotify(fd, filp, argi);
+		break;
+	case F_SETPIPE_SZ:
+	case F_GETPIPE_SZ:
+		err = pipe_fcntl(filp, cmd, argi);
+		break;
+	case F_ADD_SEALS:
+	case F_GET_SEALS:
+		err = memfd_fcntl(filp, cmd, argi);
+		break;
+	case F_GET_RW_HINT:
+		err = fcntl_get_rw_hint(filp, cmd, arg);
+		break;
+	case F_SET_RW_HINT:
+		err = fcntl_set_rw_hint(filp, cmd, arg);
+		break;
+	default:
+		break;
+	}
+	return err;
+}
+static long udmabuf_ioctl(struct file *filp, unsigned int ioctl,
+			  unsigned long arg)
+{
+	long ret;
+
+	switch (ioctl) {
+	case UDMABUF_CREATE:
+		ret = udmabuf_ioctl_create(filp, arg);
+		break;
+	case UDMABUF_CREATE_LIST:
+		ret = udmabuf_ioctl_create_list(filp, arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+	return ret;
+}
+long memfd_fcntl(struct file *file, unsigned int cmd, unsigned int arg)
+{
+	long error;
+
+	switch (cmd) {
+	case F_ADD_SEALS:
+		error = memfd_add_seals(file, arg);
+		break;
+	case F_GET_SEALS:
+		error = memfd_get_seals(file);
+		break;
+	default:
+		error = -EINVAL;
+		break;
+	}
+
+	return error;
+}
+static long udmabuf_create(struct miscdevice *device,
+			   struct udmabuf_create_list *head,
+			   struct udmabuf_create_item *list)
+{
+	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+	struct file *memfd = NULL;
+	struct address_space *mapping = NULL;
+	struct udmabuf *ubuf;
+	struct dma_buf *buf;
+	pgoff_t pgoff, pgcnt, pgidx, pgbuf = 0, pglimit;
+	struct page *page;
+	int seals, ret = -EINVAL;
+	u32 i, flags;
+
+	ubuf = kzalloc(sizeof(*ubuf), GFP_KERNEL);
+	if (!ubuf)
+		return -ENOMEM;
+
+	pglimit = (size_limit_mb * 1024 * 1024) >> PAGE_SHIFT;
+	for (i = 0; i < head->count; i++) {
+		if (!IS_ALIGNED(list[i].offset, PAGE_SIZE))
+			goto err;
+		if (!IS_ALIGNED(list[i].size, PAGE_SIZE))
+			goto err;
+		ubuf->pagecount += list[i].size >> PAGE_SHIFT;
+		if (ubuf->pagecount > pglimit)
+			goto err;
+	}
+
+	if (!ubuf->pagecount)
+		goto err;
+
+	ubuf->pages = kmalloc_array(ubuf->pagecount, sizeof(*ubuf->pages),
+				    GFP_KERNEL);
+	if (!ubuf->pages) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	pgbuf = 0;
+	for (i = 0; i < head->count; i++) {
+		ret = -EBADFD;
+		memfd = fget(list[i].memfd);
+		if (!memfd)
+			goto err;
+		mapping = memfd->f_mapping;
+		if (!shmem_mapping(mapping))
+			goto err;
+		seals = memfd_fcntl(memfd, F_GET_SEALS, 0);
+		if (seals == -EINVAL)
+			goto err;
+		ret = -EINVAL;
+		if ((seals & SEALS_WANTED) != SEALS_WANTED ||
+		    (seals & SEALS_DENIED) != 0)
+			goto err;
+		pgoff = list[i].offset >> PAGE_SHIFT;
+		pgcnt = list[i].size   >> PAGE_SHIFT;
+		for (pgidx = 0; pgidx < pgcnt; pgidx++) {
+			page = shmem_read_mapping_page(mapping, pgoff + pgidx);
+			if (IS_ERR(page)) {
+				ret = PTR_ERR(page);
+				goto err;
+			}
+			ubuf->pages[pgbuf++] = page;
+		}
+		fput(memfd);
+		memfd = NULL;
+	}
+
+	exp_info.ops  = &udmabuf_ops;
+	exp_info.size = ubuf->pagecount << PAGE_SHIFT;
+	exp_info.priv = ubuf;
+	exp_info.flags = O_RDWR;
+
+	ubuf->device = device;
+	buf = dma_buf_export(&exp_info);
+	if (IS_ERR(buf)) {
+		ret = PTR_ERR(buf);
+		goto err;
+	}
+
+	flags = 0;
+	if (head->flags & UDMABUF_FLAGS_CLOEXEC)
+		flags |= O_CLOEXEC;
+	return dma_buf_fd(buf, flags);
+
+err:
+	while (pgbuf > 0)
+		put_page(ubuf->pages[--pgbuf]);
+	if (memfd)
+		fput(memfd);
+	kfree(ubuf->pages);
+	kfree(ubuf);
+	return ret;
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+vmap_pages_range
+static vm_fault_t arena_vm_fault(struct vm_fault *vmf)
+{
+	struct bpf_map *map = vmf->vma->vm_file->private_data;
+	struct bpf_arena *arena = container_of(map, struct bpf_arena, map);
+	struct page *page;
+	long kbase, kaddr;
+	int ret;
+
+	kbase = bpf_arena_get_kern_vm_start(arena);
+	kaddr = kbase + (u32)(vmf->address);
+
+	guard(mutex)(&arena->lock);
+	page = vmalloc_to_page((void *)kaddr);
+	if (page)
+		/* already have a page vmap-ed */
+		goto out;
+
+	if (arena->map.map_flags & BPF_F_SEGV_ON_FAULT)
+		/* User space requested to segfault when page is not allocated by bpf prog */
+		return VM_FAULT_SIGSEGV;
+
+	ret = mtree_insert(&arena->mt, vmf->pgoff, MT_ENTRY, GFP_KERNEL);
+	if (ret)
+		return VM_FAULT_SIGSEGV;
+
+	/* Account into memcg of the process that created bpf_arena */
+	ret = bpf_map_alloc_pages(map, GFP_KERNEL | __GFP_ZERO, NUMA_NO_NODE, 1, &page);
+	if (ret) {
+		mtree_erase(&arena->mt, vmf->pgoff);
+		return VM_FAULT_SIGSEGV;
+	}
+
+	ret = vm_area_map_pages(arena->kern_vm, kaddr, kaddr + PAGE_SIZE, &page);
+	if (ret) {
+		mtree_erase(&arena->mt, vmf->pgoff);
+		__free_page(page);
+		return VM_FAULT_SIGSEGV;
+	}
+out:
+	page_ref_add(page, 1);
+	vmf->page = page;
+	return 0;
+}
+static int vmap_pages_range(unsigned long addr, unsigned long end,
+		pgprot_t prot, struct page **pages, unsigned int page_shift)
+{
+	int err;
+
+	err = vmap_pages_range_noflush(addr, end, prot, pages, page_shift);
+	flush_cache_vmap(addr, end);
+	return err;
+}
+int big_alloc1(void *ctx)
+{
+#if defined(__BPF_FEATURE_ADDR_SPACE_CAST)
+	volatile char __arena *page1, *page2, *no_page, *page3;
+	void __arena *base;
+
+	page1 = base = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (!page1)
+		return 1;
+	*page1 = 1;
+	page2 = bpf_arena_alloc_pages(&arena, base + ARENA_SIZE - PAGE_SIZE,
+				      1, NUMA_NO_NODE, 0);
+	if (!page2)
+		return 2;
+	*page2 = 2;
+	no_page = bpf_arena_alloc_pages(&arena, base + ARENA_SIZE,
+					1, NUMA_NO_NODE, 0);
+	if (no_page)
+		return 3;
+	if (*page1 != 1)
+		return 4;
+	if (*page2 != 2)
+		return 5;
+	bpf_arena_free_pages(&arena, (void __arena *)page1, 1);
+	if (*page2 != 2)
+		return 6;
+	if (*page1 != 0) /* use-after-free should return 0 */
+		return 7;
+	page3 = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (!page3)
+		return 8;
+	*page3 = 3;
+	if (page1 != page3)
+		return 9;
+	if (*page2 != 2)
+		return 10;
+	if (*(page1 + PAGE_SIZE) != 0)
+		return 11;
+	if (*(page1 - PAGE_SIZE) != 0)
+		return 12;
+	if (*(page2 + PAGE_SIZE) != 0)
+		return 13;
+	if (*(page2 - PAGE_SIZE) != 0)
+		return 14;
+#endif
+	return 0;
+}
+int iter_maps2(struct bpf_iter__bpf_map *ctx)
+{
+	struct seq_file *seq = ctx->meta->seq;
+
+	bpf_arena_alloc_pages((void *)seq, NULL, 1, 0, 0);
+	return 0;
+}
+int iter_maps1(struct bpf_iter__bpf_map *ctx)
+{
+	struct bpf_map *map = ctx->map;
+
+	if (!map)
+		return 0;
+	bpf_arena_alloc_pages(map, NULL, map->max_entries, 0, 0);
+	return 0;
+}
+int basic_alloc3(void *ctx)
+{
+	struct bpf_arena___l *ar = (struct bpf_arena___l *)&arena;
+	volatile char __arena *pages;
+
+	pages = bpf_arena_alloc_pages(&ar->map, NULL, ar->map.max_entries, NUMA_NO_NODE, 0);
+	if (!pages)
+		return 1;
+	return 0;
+}
+int basic_alloc1(void *ctx)
+{
+#if defined(__BPF_FEATURE_ADDR_SPACE_CAST)
+	volatile int __arena *page1, *page2, *no_page, *page3;
+
+	page1 = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (!page1)
+		return 1;
+	*page1 = 1;
+	page2 = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (!page2)
+		return 2;
+	*page2 = 2;
+	no_page = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (no_page)
+		return 3;
+	if (*page1 != 1)
+		return 4;
+	if (*page2 != 2)
+		return 5;
+	bpf_arena_free_pages(&arena, (void __arena *)page2, 1);
+	if (*page1 != 1)
+		return 6;
+	if (*page2 != 0) /* use-after-free should return 0 */
+		return 7;
+	page3 = bpf_arena_alloc_pages(&arena, NULL, 1, NUMA_NO_NODE, 0);
+	if (!page3)
+		return 8;
+	*page3 = 3;
+	if (page2 != page3)
+		return 9;
+	if (*page1 != 1)
+		return 10;
+#endif
+	return 0;
+}
+int iter_maps3(struct bpf_iter__bpf_map *ctx)
+{
+	struct bpf_map *map = ctx->map;
+
+	if (!map)
+		return 0;
+	bpf_arena_alloc_pages(map->inner_map_meta, NULL, map->max_entries, 0, 0);
+	return 0;
+}
+int basic_alloc2(void *ctx)
+{
+#if defined(__BPF_FEATURE_ADDR_SPACE_CAST)
+	volatile char __arena *page1, *page2, *page3, *page4;
+
+	page1 = bpf_arena_alloc_pages(&arena, NULL, 2, NUMA_NO_NODE, 0);
+	if (!page1)
+		return 1;
+	page2 = page1 + __PAGE_SIZE;
+	page3 = page1 + __PAGE_SIZE * 2;
+	page4 = page1 - __PAGE_SIZE;
+	*page1 = 1;
+	*page2 = 2;
+	*page3 = 3;
+	*page4 = 4;
+	if (*page1 != 1)
+		return 1;
+	if (*page2 != 2)
+		return 2;
+	if (*page3 != 0)
+		return 3;
+	if (*page4 != 0)
+		return 4;
+	bpf_arena_free_pages(&arena, (void __arena *)page1, 2);
+	if (*page1 != 0)
+		return 5;
+	if (*page2 != 0)
+		return 6;
+	if (*page3 != 0)
+		return 7;
+	if (*page4 != 0)
+		return 8;
+#endif
+	return 0;
+}
+__bpf_kfunc void *bpf_arena_alloc_pages(void *p__map, void *addr__ign, u32 page_cnt,
+					int node_id, u64 flags)
+{
+	struct bpf_map *map = p__map;
+	struct bpf_arena *arena = container_of(map, struct bpf_arena, map);
+
+	if (map->map_type != BPF_MAP_TYPE_ARENA || flags || !page_cnt)
+		return NULL;
+
+	return (void *)arena_alloc_pages(arena, (long)addr__ign, page_cnt, node_id);
+}
+static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
+				 pgprot_t prot, unsigned int page_shift,
+				 int node)
+{
+	const gfp_t nested_gfp = (gfp_mask & GFP_RECLAIM_MASK) | __GFP_ZERO;
+	bool nofail = gfp_mask & __GFP_NOFAIL;
+	unsigned long addr = (unsigned long)area->addr;
+	unsigned long size = get_vm_area_size(area);
+	unsigned long array_size;
+	unsigned int nr_small_pages = size >> PAGE_SHIFT;
+	unsigned int page_order;
+	unsigned int flags;
+	int ret;
+
+	array_size = (unsigned long)nr_small_pages * sizeof(struct page *);
+
+	if (!(gfp_mask & (GFP_DMA | GFP_DMA32)))
+		gfp_mask |= __GFP_HIGHMEM;
+
+	/* Please note that the recursion is strictly bounded. */
+	if (array_size > PAGE_SIZE) {
+		area->pages = __vmalloc_node_noprof(array_size, 1, nested_gfp, node,
+					area->caller);
+	} else {
+		area->pages = kmalloc_node_noprof(array_size, nested_gfp, node);
+	}
+
+	if (!area->pages) {
+		warn_alloc(gfp_mask, NULL,
+			"vmalloc error: size %lu, failed to allocated page array size %lu",
+			nr_small_pages * PAGE_SIZE, array_size);
+		free_vm_area(area);
+		return NULL;
+	}
+
+	set_vm_area_page_order(area, page_shift - PAGE_SHIFT);
+	page_order = vm_area_page_order(area);
+
+	area->nr_pages = vm_area_alloc_pages(gfp_mask | __GFP_NOWARN,
+		node, page_order, nr_small_pages, area->pages);
+
+	atomic_long_add(area->nr_pages, &nr_vmalloc_pages);
+	if (gfp_mask & __GFP_ACCOUNT) {
+		int i;
+
+		for (i = 0; i < area->nr_pages; i++)
+			mod_memcg_page_state(area->pages[i], MEMCG_VMALLOC, 1);
+	}
+
+	/*
+	 * If not enough pages were obtained to accomplish an
+	 * allocation request, free them via vfree() if any.
+	 */
+	if (area->nr_pages != nr_small_pages) {
+		/*
+		 * vm_area_alloc_pages() can fail due to insufficient memory but
+		 * also:-
+		 *
+		 * - a pending fatal signal
+		 * - insufficient huge page-order pages
+		 *
+		 * Since we always retry allocations at order-0 in the huge page
+		 * case a warning for either is spurious.
+		 */
+		if (!fatal_signal_pending(current) && page_order == 0)
+			warn_alloc(gfp_mask, NULL,
+				"vmalloc error: size %lu, failed to allocate pages",
+				area->nr_pages * PAGE_SIZE);
+		goto fail;
+	}
+
+	/*
+	 * page tables allocations ignore external gfp mask, enforce it
+	 * by the scope API
+	 */
+	if ((gfp_mask & (__GFP_FS | __GFP_IO)) == __GFP_IO)
+		flags = memalloc_nofs_save();
+	else if ((gfp_mask & (__GFP_FS | __GFP_IO)) == 0)
+		flags = memalloc_noio_save();
+
+	do {
+		ret = vmap_pages_range(addr, addr + size, prot, area->pages,
+			page_shift);
+		if (nofail && (ret < 0))
+			schedule_timeout_uninterruptible(1);
+	} while (nofail && (ret < 0));
+
+	if ((gfp_mask & (__GFP_FS | __GFP_IO)) == __GFP_IO)
+		memalloc_nofs_restore(flags);
+	else if ((gfp_mask & (__GFP_FS | __GFP_IO)) == 0)
+		memalloc_noio_restore(flags);
+
+	if (ret < 0) {
+		warn_alloc(gfp_mask, NULL,
+			"vmalloc error: size %lu, failed to map pages",
+			area->nr_pages * PAGE_SIZE);
+		goto fail;
+	}
+
+	return area->addr;
+
+fail:
+	vfree(area->addr);
+	return NULL;
+}
+static long arena_alloc_pages(struct bpf_arena *arena, long uaddr, long page_cnt, int node_id)
+{
+	/* user_vm_end/start are fixed before bpf prog runs */
+	long page_cnt_max = (arena->user_vm_end - arena->user_vm_start) >> PAGE_SHIFT;
+	u64 kern_vm_start = bpf_arena_get_kern_vm_start(arena);
+	struct page **pages;
+	long pgoff = 0;
+	u32 uaddr32;
+	int ret, i;
+
+	if (page_cnt > page_cnt_max)
+		return 0;
+
+	if (uaddr) {
+		if (uaddr & ~PAGE_MASK)
+			return 0;
+		pgoff = compute_pgoff(arena, uaddr);
+		if (pgoff > page_cnt_max - page_cnt)
+			/* requested address will be outside of user VMA */
+			return 0;
+	}
+
+	/* zeroing is needed, since alloc_pages_bulk_array() only fills in non-zero entries */
+	pages = kvcalloc(page_cnt, sizeof(struct page *), GFP_KERNEL);
+	if (!pages)
+		return 0;
+
+	guard(mutex)(&arena->lock);
+
+	if (uaddr)
+		ret = mtree_insert_range(&arena->mt, pgoff, pgoff + page_cnt - 1,
+					 MT_ENTRY, GFP_KERNEL);
+	else
+		ret = mtree_alloc_range(&arena->mt, &pgoff, MT_ENTRY,
+					page_cnt, 0, page_cnt_max - 1, GFP_KERNEL);
+	if (ret)
+		goto out_free_pages;
+
+	ret = bpf_map_alloc_pages(&arena->map, GFP_KERNEL | __GFP_ZERO,
+				  node_id, page_cnt, pages);
+	if (ret)
+		goto out;
+
+	uaddr32 = (u32)(arena->user_vm_start + pgoff * PAGE_SIZE);
+	/* Earlier checks made sure that uaddr32 + page_cnt * PAGE_SIZE - 1
+	 * will not overflow 32-bit. Lower 32-bit need to represent
+	 * contiguous user address range.
+	 * Map these pages at kern_vm_start base.
+	 * kern_vm_start + uaddr32 + page_cnt * PAGE_SIZE - 1 can overflow
+	 * lower 32-bit and it's ok.
+	 */
+	ret = vm_area_map_pages(arena->kern_vm, kern_vm_start + uaddr32,
+				kern_vm_start + uaddr32 + page_cnt * PAGE_SIZE, pages);
+	if (ret) {
+		for (i = 0; i < page_cnt; i++)
+			__free_page(pages[i]);
+		goto out;
+	}
+	kvfree(pages);
+	return clear_lo32(arena->user_vm_start) + uaddr32;
+out:
+	mtree_erase(&arena->mt, pgoff);
+out_free_pages:
+	kvfree(pages);
+	return 0;
+}
+int vm_area_map_pages(struct vm_struct *area, unsigned long start,
+		      unsigned long end, struct page **pages)
+{
+	int err;
+
+	err = check_sparse_vm_area(area, start, end);
+	if (err)
+		return err;
+
+	return vmap_pages_range(start, end, PAGE_KERNEL, pages, PAGE_SHIFT);
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+__sys_setfsgid
+SYSCALL_DEFINE1(setfsgid16, old_gid_t, gid)
+{
+	return __sys_setfsgid(low2highgid(gid));
+}
+SYSCALL_DEFINE1(setfsgid, gid_t, gid)
+{
+	return __sys_setfsgid(gid);
+}
+long __sys_setfsgid(gid_t gid)
+{
+	const struct cred *old;
+	struct cred *new;
+	gid_t old_fsgid;
+	kgid_t kgid;
+
+	old = current_cred();
+	old_fsgid = from_kgid_munged(old->user_ns, old->fsgid);
+
+	kgid = make_kgid(old->user_ns, gid);
+	if (!gid_valid(kgid))
+		return old_fsgid;
+
+	new = prepare_creds();
+	if (!new)
+		return old_fsgid;
+
+	if (gid_eq(kgid, old->gid)  || gid_eq(kgid, old->egid)  ||
+	    gid_eq(kgid, old->sgid) || gid_eq(kgid, old->fsgid) ||
+	    ns_capable_setid(old->user_ns, CAP_SETGID)) {
+		if (!gid_eq(kgid, old->fsgid)) {
+			new->fsgid = kgid;
+			if (security_task_fix_setgid(new,old,LSM_SETID_FS) == 0)
+				goto change_okay;
+		}
+	}
+
+	abort_creds(new);
+	return old_fsgid;
+
+change_okay:
+	commit_creds(new);
+	return old_fsgid;
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+sock_free_inode
+static void sock_free_inode(struct inode *inode)
+{
+	struct socket_alloc *ei;
+
+	ei = container_of(inode, struct socket_alloc, vfs_inode);
+	kmem_cache_free(sock_inode_cachep, ei);
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]

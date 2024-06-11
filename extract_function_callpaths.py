@@ -3,6 +3,10 @@ import sys
 import extract_func_body as efb
 
 linux_folder = "./linux"
+
+too_general = {"raise_exception"}
+
+
 file_list = []
 def listdir_recur(path, fl):
     for file in os.listdir(path):
@@ -17,8 +21,10 @@ def listdir_recur(path, fl):
 
 
 def extract_call_path_for_func_name(curr_func_name, terminals, call_paths, parsed_funcs):
-    call_paths = call_paths + efb.extract_func_body_linux_path(curr_func_name, linux_folder)
 
+    call_paths = call_paths + efb.extract_func_body_linux_path(curr_func_name, linux_folder)
+    if curr_func_name in too_general:
+        return
     print("function name: " + curr_func_name)
     if file_list == []:
         listdir_recur(linux_folder + "/linux_new", file_list)
@@ -26,10 +32,17 @@ def extract_call_path_for_func_name(curr_func_name, terminals, call_paths, parse
     for item in file_list:
         f = open(item)
         for line in f.readlines():
-            if line.find(function_name) != -1:
+            if line.find(curr_func_name) != -1:
                 contain_list.append(item)
                 break
         f.close()
+
+    if len(set(contain_list)) > 10:
+        print("WARNING many upper func_name used: " + curr_func_name)
+        for used_file in contain_list:
+            print(used_file)
+        print("WARNING end")
+        return
     upper_result = find_upper_functions(curr_func_name, contain_list)
     for item in upper_result[1]:
         if not terminal_contains(terminals, item):
@@ -69,9 +82,19 @@ def find_upper_functions(function_name, contain_list):
         f = open(file)
         linenum = 0
         contain_lines = []
+        is_in_comment = False
         for line in f.readlines():
             linenum += 1
-            if line.find(function_name) != -1:
+            if is_single_line_comment(line): continue
+            if is_comment_start(line):
+                is_in_comment = True
+            if is_comment_end(line):
+                if not is_in_comment:
+                    print(line + ", " + file)
+                    assert(False)
+                is_in_comment = False
+            if is_in_comment: continue
+            if line.find(function_name + "(") != -1:
                 contain_lines.append(linenum)
         f.close()
 
@@ -90,7 +113,26 @@ def find_upper_functions(function_name, contain_list):
     # for item in terminal_segment:
     #     print(item[0] + " : [" + str(item[1][0]) + ", " + str(item[1][1]) +  "]")
     return (result_list, terminal_segment)
-            
+
+
+def is_single_line_comment(line):
+    striped_line = str.strip(line).strip("\n").strip("\t")
+    if "//" == striped_line[:2] or "/*" == striped_line[:2] and "*/" == striped_line[-2:]:
+        return True
+    else:
+        return False
+def is_comment_start(line):
+    striped_line = str.strip(line).strip("\n").strip("\t")
+    if striped_line.find("/*") != -1 and striped_line.find("*/") == -1:
+        return True
+    else:
+        return False
+def is_comment_end(line):
+    striped_line = str.strip(line).strip("\n").strip("\t")
+    if "*/" == striped_line[-2:] and striped_line.find("/*") == -1:
+        return True
+    else:
+        return False
 
 def extract_call_path_str_for_func_name(function_name):
     terminals = []
