@@ -16,7 +16,7 @@ def collect_func_names_and_lines(coverage_path):
         if is_name:
             striped_name = line.strip('\n')
             funcnames.add(striped_name)
-            if not funcname2lineset.has_key(striped_name):
+            if not striped_name in funcname2lineset:
                 funcname2lineset[striped_name] = set()
             is_name = False
         else:

@@ -958,4 +958,504 @@ static void sock_free_inode(struct inode *inode)
 }
 Generate a list of functions that can reach the function in the following format: 
 [syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+fscontext_create_fd
+SYSCALL_DEFINE2(fsopen, const char __user *, _fs_name, unsigned int, flags)
+{
+	struct file_system_type *fs_type;
+	struct fs_context *fc;
+	const char *fs_name;
+	int ret;
+
+	if (!may_mount())
+		return -EPERM;
+
+	if (flags & ~FSOPEN_CLOEXEC)
+		return -EINVAL;
+
+	fs_name = strndup_user(_fs_name, PAGE_SIZE);
+	if (IS_ERR(fs_name))
+		return PTR_ERR(fs_name);
+
+	fs_type = get_fs_type(fs_name);
+	kfree(fs_name);
+	if (!fs_type)
+		return -ENODEV;
+
+	fc = fs_context_for_mount(fs_type, 0);
+	put_filesystem(fs_type);
+	if (IS_ERR(fc))
+		return PTR_ERR(fc);
+
+	fc->phase = FS_CONTEXT_CREATE_PARAMS;
+
+	ret = fscontext_alloc_log(fc);
+	if (ret < 0)
+		goto err_fc;
+
+	return fscontext_create_fd(fc, flags & FSOPEN_CLOEXEC ? O_CLOEXEC : 0);
+
+err_fc:
+	put_fs_context(fc);
+	return ret;
+}
+SYSCALL_DEFINE3(fspick, int, dfd, const char __user *, path, unsigned int, flags)
+{
+	struct fs_context *fc;
+	struct path target;
+	unsigned int lookup_flags;
+	int ret;
+
+	if (!may_mount())
+		return -EPERM;
+
+	if ((flags & ~(FSPICK_CLOEXEC |
+		       FSPICK_SYMLINK_NOFOLLOW |
+		       FSPICK_NO_AUTOMOUNT |
+		       FSPICK_EMPTY_PATH)) != 0)
+		return -EINVAL;
+
+	lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
+	if (flags & FSPICK_SYMLINK_NOFOLLOW)
+		lookup_flags &= ~LOOKUP_FOLLOW;
+	if (flags & FSPICK_NO_AUTOMOUNT)
+		lookup_flags &= ~LOOKUP_AUTOMOUNT;
+	if (flags & FSPICK_EMPTY_PATH)
+		lookup_flags |= LOOKUP_EMPTY;
+	ret = user_path_at(dfd, path, lookup_flags, &target);
+	if (ret < 0)
+		goto err;
+
+	ret = -EINVAL;
+	if (target.mnt->mnt_root != target.dentry)
+		goto err_path;
+
+	fc = fs_context_for_reconfigure(target.dentry, 0, 0);
+	if (IS_ERR(fc)) {
+		ret = PTR_ERR(fc);
+		goto err_path;
+	}
+
+	fc->phase = FS_CONTEXT_RECONF_PARAMS;
+
+	ret = fscontext_alloc_log(fc);
+	if (ret < 0)
+		goto err_fc;
+
+	path_put(&target);
+	return fscontext_create_fd(fc, flags & FSPICK_CLOEXEC ? O_CLOEXEC : 0);
+
+err_fc:
+	put_fs_context(fc);
+err_path:
+	path_put(&target);
+err:
+	return ret;
+}
+static int fscontext_create_fd(struct fs_context *fc, unsigned int o_flags)
+{
+	int fd;
+
+	fd = anon_inode_getfd("[fscontext]", &fscontext_fops, fc,
+			      O_RDWR | o_flags);
+	if (fd < 0)
+		put_fs_context(fc);
+	return fd;
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
+, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: 
+memfd_fcntl
+SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+{	
+	struct fd f = fdget_raw(fd);
+	long err = -EBADF;
+
+	if (!f.file)
+		goto out;
+
+	if (unlikely(f.file->f_mode & FMODE_PATH)) {
+		if (!check_fcntl_cmd(cmd))
+			goto out1;
+	}
+
+	err = security_file_fcntl(f.file, cmd, arg);
+	if (!err)
+		err = do_fcntl(fd, cmd, arg, f.file);
+
+out1:
+ 	fdput(f);
+out:
+	return err;
+}
+COMPAT_SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
+		       compat_ulong_t, arg)
+{
+	return do_compat_fcntl64(fd, cmd, arg);
+}
+COMPAT_SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd,
+		       compat_ulong_t, arg)
+{
+	switch (cmd) {
+	case F_GETLK64:
+	case F_SETLK64:
+	case F_SETLKW64:
+	case F_OFD_GETLK:
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		return -EINVAL;
+	}
+	return do_compat_fcntl64(fd, cmd, arg);
+}
+static long udmabuf_create(struct miscdevice *device,
+			   struct udmabuf_create_list *head,
+			   struct udmabuf_create_item *list)
+{
+	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+	struct file *memfd = NULL;
+	struct address_space *mapping = NULL;
+	struct udmabuf *ubuf;
+	struct dma_buf *buf;
+	pgoff_t pgoff, pgcnt, pgidx, pgbuf = 0, pglimit;
+	struct page *page;
+	int seals, ret = -EINVAL;
+	u32 i, flags;
+
+	ubuf = kzalloc(sizeof(*ubuf), GFP_KERNEL);
+	if (!ubuf)
+		return -ENOMEM;
+
+	pglimit = (size_limit_mb * 1024 * 1024) >> PAGE_SHIFT;
+	for (i = 0; i < head->count; i++) {
+		if (!IS_ALIGNED(list[i].offset, PAGE_SIZE))
+			goto err;
+		if (!IS_ALIGNED(list[i].size, PAGE_SIZE))
+			goto err;
+		ubuf->pagecount += list[i].size >> PAGE_SHIFT;
+		if (ubuf->pagecount > pglimit)
+			goto err;
+	}
+
+	if (!ubuf->pagecount)
+		goto err;
+
+	ubuf->pages = kmalloc_array(ubuf->pagecount, sizeof(*ubuf->pages),
+				    GFP_KERNEL);
+	if (!ubuf->pages) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+	pgbuf = 0;
+	for (i = 0; i < head->count; i++) {
+		ret = -EBADFD;
+		memfd = fget(list[i].memfd);
+		if (!memfd)
+			goto err;
+		mapping = memfd->f_mapping;
+		if (!shmem_mapping(mapping))
+			goto err;
+		seals = memfd_fcntl(memfd, F_GET_SEALS, 0);
+		if (seals == -EINVAL)
+			goto err;
+		ret = -EINVAL;
+		if ((seals & SEALS_WANTED) != SEALS_WANTED ||
+		    (seals & SEALS_DENIED) != 0)
+			goto err;
+		pgoff = list[i].offset >> PAGE_SHIFT;
+		pgcnt = list[i].size   >> PAGE_SHIFT;
+		for (pgidx = 0; pgidx < pgcnt; pgidx++) {
+			page = shmem_read_mapping_page(mapping, pgoff + pgidx);
+			if (IS_ERR(page)) {
+				ret = PTR_ERR(page);
+				goto err;
+			}
+			ubuf->pages[pgbuf++] = page;
+		}
+		fput(memfd);
+		memfd = NULL;
+	}
+
+	exp_info.ops  = &udmabuf_ops;
+	exp_info.size = ubuf->pagecount << PAGE_SHIFT;
+	exp_info.priv = ubuf;
+	exp_info.flags = O_RDWR;
+
+	ubuf->device = device;
+	buf = dma_buf_export(&exp_info);
+	if (IS_ERR(buf)) {
+		ret = PTR_ERR(buf);
+		goto err;
+	}
+
+	flags = 0;
+	if (head->flags & UDMABUF_FLAGS_CLOEXEC)
+		flags |= O_CLOEXEC;
+	return dma_buf_fd(buf, flags);
+
+err:
+	while (pgbuf > 0)
+		put_page(ubuf->pages[--pgbuf]);
+	if (memfd)
+		fput(memfd);
+	kfree(ubuf->pages);
+	kfree(ubuf);
+	return ret;
+}
+static long udmabuf_ioctl(struct file *filp, unsigned int ioctl,
+			  unsigned long arg)
+{
+	long ret;
+
+	switch (ioctl) {
+	case UDMABUF_CREATE:
+		ret = udmabuf_ioctl_create(filp, arg);
+		break;
+	case UDMABUF_CREATE_LIST:
+		ret = udmabuf_ioctl_create_list(filp, arg);
+		break;
+	default:
+		ret = -ENOTTY;
+		break;
+	}
+	return ret;
+}
+static long do_compat_fcntl64(unsigned int fd, unsigned int cmd,
+			     compat_ulong_t arg)
+{
+	struct fd f = fdget_raw(fd);
+	struct flock flock;
+	long err = -EBADF;
+
+	if (!f.file)
+		return err;
+
+	if (unlikely(f.file->f_mode & FMODE_PATH)) {
+		if (!check_fcntl_cmd(cmd))
+			goto out_put;
+	}
+
+	err = security_file_fcntl(f.file, cmd, arg);
+	if (err)
+		goto out_put;
+
+	switch (cmd) {
+	case F_GETLK:
+		err = get_compat_flock(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_getlk(f.file, convert_fcntl_cmd(cmd), &flock);
+		if (err)
+			break;
+		err = fixup_compat_flock(&flock);
+		if (!err)
+			err = put_compat_flock(&flock, compat_ptr(arg));
+		break;
+	case F_GETLK64:
+	case F_OFD_GETLK:
+		err = get_compat_flock64(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_getlk(f.file, convert_fcntl_cmd(cmd), &flock);
+		if (!err)
+			err = put_compat_flock64(&flock, compat_ptr(arg));
+		break;
+	case F_SETLK:
+	case F_SETLKW:
+		err = get_compat_flock(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_setlk(fd, f.file, convert_fcntl_cmd(cmd), &flock);
+		break;
+	case F_SETLK64:
+	case F_SETLKW64:
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		err = get_compat_flock64(&flock, compat_ptr(arg));
+		if (err)
+			break;
+		err = fcntl_setlk(fd, f.file, convert_fcntl_cmd(cmd), &flock);
+		break;
+	default:
+		err = do_fcntl(fd, cmd, arg, f.file);
+		break;
+	}
+out_put:
+	fdput(f);
+	return err;
+}
+static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
+		struct file *filp)
+{
+	void __user *argp = (void __user *)arg;
+	int argi = (int)arg;
+	struct flock flock;
+	long err = -EINVAL;
+
+	switch (cmd) {
+	case F_DUPFD:
+		err = f_dupfd(argi, filp, 0);
+		break;
+	case F_DUPFD_CLOEXEC:
+		err = f_dupfd(argi, filp, O_CLOEXEC);
+		break;
+	case F_DUPFD_QUERY:
+		err = f_dupfd_query(argi, filp);
+		break;
+	case F_GETFD:
+		err = get_close_on_exec(fd) ? FD_CLOEXEC : 0;
+		break;
+	case F_SETFD:
+		err = 0;
+		set_close_on_exec(fd, argi & FD_CLOEXEC);
+		break;
+	case F_GETFL:
+		err = filp->f_flags;
+		break;
+	case F_SETFL:
+		err = setfl(fd, filp, argi);
+		break;
+#if BITS_PER_LONG != 32
+	/* 32-bit arches must use fcntl64() */
+	case F_OFD_GETLK:
+#endif
+	case F_GETLK:
+		if (copy_from_user(&flock, argp, sizeof(flock)))
+			return -EFAULT;
+		err = fcntl_getlk(filp, cmd, &flock);
+		if (!err && copy_to_user(argp, &flock, sizeof(flock)))
+			return -EFAULT;
+		break;
+#if BITS_PER_LONG != 32
+	/* 32-bit arches must use fcntl64() */
+	case F_OFD_SETLK:
+	case F_OFD_SETLKW:
+		fallthrough;
+#endif
+	case F_SETLK:
+	case F_SETLKW:
+		if (copy_from_user(&flock, argp, sizeof(flock)))
+			return -EFAULT;
+		err = fcntl_setlk(fd, filp, cmd, &flock);
+		break;
+	case F_GETOWN:
+		/*
+		 * XXX If f_owner is a process group, the
+		 * negative return value will get converted
+		 * into an error.  Oops.  If we keep the
+		 * current syscall conventions, the only way
+		 * to fix this will be in libc.
+		 */
+		err = f_getown(filp);
+		force_successful_syscall_return();
+		break;
+	case F_SETOWN:
+		err = f_setown(filp, argi, 1);
+		break;
+	case F_GETOWN_EX:
+		err = f_getown_ex(filp, arg);
+		break;
+	case F_SETOWN_EX:
+		err = f_setown_ex(filp, arg);
+		break;
+	case F_GETOWNER_UIDS:
+		err = f_getowner_uids(filp, arg);
+		break;
+	case F_GETSIG:
+		err = filp->f_owner.signum;
+		break;
+	case F_SETSIG:
+		/* arg == 0 restores default behaviour. */
+		if (!valid_signal(argi)) {
+			break;
+		}
+		err = 0;
+		filp->f_owner.signum = argi;
+		break;
+	case F_GETLEASE:
+		err = fcntl_getlease(filp);
+		break;
+	case F_SETLEASE:
+		err = fcntl_setlease(fd, filp, argi);
+		break;
+	case F_NOTIFY:
+		err = fcntl_dirnotify(fd, filp, argi);
+		break;
+	case F_SETPIPE_SZ:
+	case F_GETPIPE_SZ:
+		err = pipe_fcntl(filp, cmd, argi);
+		break;
+	case F_ADD_SEALS:
+	case F_GET_SEALS:
+		err = memfd_fcntl(filp, cmd, argi);
+		break;
+	case F_GET_RW_HINT:
+		err = fcntl_get_rw_hint(filp, cmd, arg);
+		break;
+	case F_SET_RW_HINT:
+		err = fcntl_set_rw_hint(filp, cmd, arg);
+		break;
+	default:
+		break;
+	}
+	return err;
+}
+static long udmabuf_ioctl_create(struct file *filp, unsigned long arg)
+{
+	struct udmabuf_create create;
+	struct udmabuf_create_list head;
+	struct udmabuf_create_item list;
+
+	if (copy_from_user(&create, (void __user *)arg,
+			   sizeof(create)))
+		return -EFAULT;
+
+	head.flags  = create.flags;
+	head.count  = 1;
+	list.memfd  = create.memfd;
+	list.offset = create.offset;
+	list.size   = create.size;
+
+	return udmabuf_create(filp->private_data, &head, &list);
+}
+static long udmabuf_ioctl_create_list(struct file *filp, unsigned long arg)
+{
+	struct udmabuf_create_list head;
+	struct udmabuf_create_item *list;
+	int ret = -EINVAL;
+	u32 lsize;
+
+	if (copy_from_user(&head, (void __user *)arg, sizeof(head)))
+		return -EFAULT;
+	if (head.count > list_limit)
+		return -EINVAL;
+	lsize = sizeof(struct udmabuf_create_item) * head.count;
+	list = memdup_user((void __user *)(arg + sizeof(head)), lsize);
+	if (IS_ERR(list))
+		return PTR_ERR(list);
+
+	ret = udmabuf_create(filp->private_data, &head, list);
+	kfree(list);
+	return ret;
+}
+long memfd_fcntl(struct file *file, unsigned int cmd, unsigned int arg)
+{
+	long error;
+
+	switch (cmd) {
+	case F_ADD_SEALS:
+		error = memfd_add_seals(file, arg);
+		break;
+	case F_GET_SEALS:
+		error = memfd_get_seals(file);
+		break;
+	default:
+		error = -EINVAL;
+		break;
+	}
+
+	return error;
+}
+Generate a list of functions that can reach the function in the following format: 
+[syscall1, syscall2, syscall3, ...]
 , the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]

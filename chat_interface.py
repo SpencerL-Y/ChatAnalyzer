@@ -107,10 +107,9 @@ class chat_interface:
         call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
         description += call_paths
         description += "Generate a list of functions that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
-        # answer = self.ask_question_and_record(description)
-        # print(answer)
-        # return answer
-        return description
+        answer = self.ask_question_and_record(description)
+        print(answer.content)
+        return answer.content
 
         
     
@@ -273,34 +272,42 @@ if __name__ == '__main__':
     version1 = False
     version2 = False
     version3 = False
-    experiment_on_chat_syscall_commit_change_analysis = True
+    experiment_on_chat_syscall_commit_change_analysis = False
     extract_function = False
-    print("main")
+    compute_relative_distance = True
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
-    function_list = [
-        #"stable_page_flags", 
-        "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"]
-    i = 111111
+    if compute_relative_distance:
+        function_name = sys.argv[1]
+        callpath_gen.extract_relative_functions_map(function_name)
     if experiment_on_chat_syscall_commit_change_analysis:
-        time_start = time.time()
-        result = ""
+        function_name = sys.argv[1]
+        function_list = [
+            #"stable_page_flags", 
+            # "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"
+            function_name
+        ]
+        i = 1
+        function_name = sys.argv[1]
         for name in function_list:
-            # result += str(i) + " function analysis: ----------------------------\n"
-            # print(str(i) + " function analysis: ----------------------------")
-            # result += interface.ask_for_function_callgraph_with_body(name, "./linux/").content + "\n"
-            result += str(i) + " syscall analysis: ----------------------------\n"
-            print(str(i) + " syscall analysis: ----------------------------")
-            # result += interface.ask_for_syscalls_can_reach_functions(name).content + "\n"
-            result = interface.ask_for_syscalls_can_reach_functions(name)
-            f = open("testing.txt", "a")
-            f.write(result)
-            f.close()
-            i += 111111
-        print("RESULT: ")
-        print(result)
-        time_end = time.time()
-        print("TIME CONSUMED: " + str(time_end - time_start))
+            result = ""
+            time_start = time.time()
+            result += str(i) + " syscall analysis for " + name + " : ----------------------------\n"
+            llm_list_result = interface.ask_for_syscalls_can_reach_functions(name)
+            result += llm_list_result
+            # print("RESULT: ")
+            # print(result)
+            time_end = time.time()
+            # print("TIME CONSUMED: " + str(time_end - time_start))
+
+
+            # llm result sanitizing
+            llm_list_result = llm_list_result.strip()
+            assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
+            unwrap = llm_list_result[1:-1]
+            unwrap_list = unwrap.split(",")
+            for item in unwrap_list:
+                print(item.strip())
 
     if extract_function:
         result = efb.extract_function_body(sys.argv[1])
