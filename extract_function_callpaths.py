@@ -32,7 +32,7 @@ def extract_call_path_for_func_name(curr_func_name, terminals, call_paths, parse
     for item in file_list:
         f = open(item)
         for line in f.readlines():
-            if line.find(curr_func_name) != -1:
+            if line.find(curr_func_name + "(") != -1:
                 contain_list.append(item)
                 break
         f.close()
@@ -57,6 +57,7 @@ def terminal_contains(terminals, item):
         if item[0] == existed[0] and item[1] == existed[1]:
             return True
     return False
+
 def find_upper_functions(function_name, contain_list):
     terminal_segment = []
     result_list = []
@@ -114,6 +115,51 @@ def find_upper_functions(function_name, contain_list):
     #     print(item[0] + " : [" + str(item[1][0]) + ", " + str(item[1][1]) +  "]")
     return (result_list, terminal_segment)
 
+def extract_relative_functions_map(target_func_name):
+    terminals = []
+    curr_level = 0
+    func_rank_map = dict()
+    extract_relative_functions_map_rec(target_func_name, curr_level, terminals, func_rank_map)
+    print("func_rank_map for target function: " + target_func_name)
+    for item in func_rank_map:
+        print(item)
+    return func_rank_map
+
+
+def extract_relative_functions_map_rec(target_func_name, curr_level, terminals, func_rank_map):
+    # give a importance ranking for the relative function in 5 steps of func_name
+    # resulting a map where the map item is:
+    # functionName, ranking in [1,5] identify the minimum steps need to go to target function
+    if curr_level > 6:
+        return
+    print("function name: " + target_func_name)
+    if file_list == []:
+        listdir_recur(linux_folder + "/linux_new", file_list)
+    contain_list = []
+    for item in file_list:
+        f = open(item)
+        for line in f.readlines():
+            if line.find(target_func_name + "(") != -1:
+                contain_list.append(item)
+                break
+        f.close()
+
+    if len(set(contain_list)) > 10:
+        print("WARNING many upper func_name used: " + target_func_name)
+        for used_file in contain_list:
+            print(used_file)
+        print("WARNING end")
+        return
+    upper_result = find_upper_functions(target_func_name, contain_list)
+    for item in upper_result[1]:
+        if not terminal_contains(terminals, item):
+            terminals.append(item)
+    for upper_func in upper_result[0]:
+        if not upper_func in func_rank_map:
+            func_rank_map[upper_func] = curr_level
+            extract_relative_functions_map_rec(upper_func,  curr_level+1, terminals, func_rank_map)
+        else:
+            continue
 
 def is_single_line_comment(line):
     striped_line = str.strip(line).strip("\n").strip("\t")
