@@ -122,7 +122,7 @@ def extract_relative_functions_map(target_func_name):
     extract_relative_functions_map_rec(target_func_name, curr_level, terminals, func_rank_map)
     print("func_rank_map for target function: " + target_func_name)
     for item in func_rank_map:
-        print(item)
+        print(item, func_rank_map[item])
     return func_rank_map
 
 
@@ -201,6 +201,11 @@ def extract_call_path_str_for_func_name(function_name):
     for called_func in parsed_funcs:
         call_paths += efb.extract_func_body_linux_path(called_func, "./linux")
     return call_paths
+
+def extract_call_path_str_for_func_name_LLVM(function_name, max depth):
+    call_path_list = []
+    # TODO: add implementation to plug the path finder using callgraph llvm pass
+    
 
 
 def obtain_terminal_source(relative_file_path, start_end_list):

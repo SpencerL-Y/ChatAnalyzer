@@ -32,7 +32,7 @@ class chat_interface:
 
     def set_up_aiproxy_configs(self):
         self.client = OpenAI(
-            api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt",
+            api_key = "",
             base_url="https://api.aiproxy.io/v1"
         )
 
@@ -40,7 +40,7 @@ class chat_interface:
     # aiproxy is not free
     def set_up_default_configs(self):
         self.client = OpenAI(
-            api_key = "sk-5nga6ZRm5D87QSytGYlw9jIhItjhnPqxeUoUfRuAJAam87zt",
+            api_key = "",
             base_url="https://api.aiproxy.io/v1"
         )
 
@@ -272,9 +272,9 @@ if __name__ == '__main__':
     version1 = False
     version2 = False
     version3 = False
-    experiment_on_chat_syscall_commit_change_analysis = False
+    experiment_on_chat_syscall_commit_change_analysis = True
     extract_function = False
-    compute_relative_distance = True
+    compute_relative_distance = False
     interface = chat_interface()
     interface.set_up_aiproxy_configs()
     if compute_relative_distance:
