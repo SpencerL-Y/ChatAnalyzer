@@ -106,7 +106,7 @@ class chat_interface:
         description += funcname + "\n"
         call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
         description += call_paths
-        description += "Generate a list of functions that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        description += "Generate a list of syscalls that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
         answer = self.ask_question_and_record(description)
         print(answer.content)
         return answer.content
@@ -310,6 +310,7 @@ if __name__ == '__main__':
                 print(item.strip())
 
     if extract_function:
+        # add function body by function_name list here?
         result = efb.extract_function_body(sys.argv[1])
         print(result)
 

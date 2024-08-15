@@ -1,6 +1,7 @@
 import os
 import sys
 import extract_func_body as efb
+import subprocess
 
 linux_folder = "./linux"
 
@@ -202,10 +203,34 @@ def extract_call_path_str_for_func_name(function_name):
         call_paths += efb.extract_func_body_linux_path(called_func, "./linux")
     return call_paths
 
-def extract_call_path_str_for_func_name_LLVM(function_name, max depth):
-    call_path_list = []
-    # TODO: add implementation to plug the path finder using callgraph llvm pass
+def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
     
+    call_path_list = []
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    try:
+        analyzer_build_dir = os.path.join(current_dir, '..', 'linuxRepo', 'llvm_kernel_analysis', 'Analyzer', 'build')
+        os.chdir(analyzer_build_dir)
+        cmd = ['./main', function_name]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(f"failed with return code {result.returncode}: {result.stderr}")
+        with open('pathsFile.txt', 'r') as lines:
+            path = []
+            for line in lines:
+                line = line.strip()
+                if line == "#path":
+                    if path:
+                        call_path_list.append(path)
+                        path = []
+                else:
+                    path.append(line)
+            if path:
+                call_path_list.append(path) 
+        return call_path_list
+    
+    finally:
+        os.chdir(current_dir)
 
 
 def obtain_terminal_source(relative_file_path, start_end_list):

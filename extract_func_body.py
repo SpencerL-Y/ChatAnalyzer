@@ -63,6 +63,17 @@ def extract_function_body(func_name):
     f.close()
     return function_str
 
+def extract_all_function_body_list(call_path_list):
+    all_function_bodies = []
+    for path in call_path_list:
+        function_bodies = []
+        for function_name in path:
+            function_body = extract_function_body(function_name)
+            function_bodies.append(function_body)
+        all_function_bodies.append(function_bodies)
+    # print(all_function_bodies)
+    return all_function_bodies
+
 def extract_func_body_linux_path(func_name, linux_path):
     # print("extract func body for: " + func_name)
     search_result = ga.get_funcname_firstline_linux_folder(func_name, linux_path)
