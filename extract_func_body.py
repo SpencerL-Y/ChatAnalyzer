@@ -1,5 +1,9 @@
 import os, sys
 import re
+
+# TODO: change to your abspath here
+sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
+
 import get_arguments as ga
 
 

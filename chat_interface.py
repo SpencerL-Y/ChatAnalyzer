@@ -1,6 +1,10 @@
 import openai
 import os, re
 import sys
+
+sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
+project_root = "/home/clexma/Desktop/fox3/fuzzing/"
+
 import extract_func_body as efb
 import function_info_arrange as finfo
 import make_syscall_and_relation_file as mkrel
@@ -11,6 +15,7 @@ from openai import OpenAI
 import time
 
 global_model = "gpt-4o"
+secrete = ""
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -32,7 +37,7 @@ class chat_interface:
 
     def set_up_aiproxy_configs(self):
         self.client = OpenAI(
-            api_key = "",
+            api_key = secrete,
             base_url="https://api.aiproxy.io/v1"
         )
 
@@ -40,7 +45,7 @@ class chat_interface:
     # aiproxy is not free
     def set_up_default_configs(self):
         self.client = OpenAI(
-            api_key = "",
+            api_key = secrete,
             base_url="https://api.aiproxy.io/v1"
         )
 
@@ -104,9 +109,11 @@ class chat_interface:
     def ask_for_syscalls_can_reach_functions(self, funcname):
         description = "Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: \n"
         description += funcname + "\n"
-        call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
+        # call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
+        call_paths = callpath_gen.extract_call_path_str_for_func_name_LLVM(funcname, 5)
         description += call_paths
         description += "Generate a list of syscalls that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        print("prompt: " + description)
         answer = self.ask_question_and_record(description)
         print(answer.content)
         return answer.content
@@ -172,7 +179,7 @@ class chat_interface:
 
 
 def get_entry_functions():
-    f = open("./original_syscall_definitions.txt")
+    f = open(os.path.join(project_root, "./original_syscall_definitions.txt"))
     lines = f.readlines()
     result = []
     curr_func = ""
@@ -186,7 +193,7 @@ def get_entry_functions():
     return result
 
 def get_test_entry_functions():
-    f = open("./small_syscalls_test.txt")
+    f = open(os.path.join(project_root,"./small_syscalls_test.txt"))
     lines = f.readlines()
     result = []
     curr_func = ""

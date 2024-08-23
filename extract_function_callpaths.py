@@ -1,9 +1,13 @@
 import os
 import sys
-import extract_func_body as efb
 import subprocess
 
-linux_folder = "./linux"
+sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
+import extract_func_body as efb
+
+project_root = "/home/clexma/Desktop/fox3/fuzzing/"
+
+linux_folder = os.path.join(project_root, "linuxRepo/")
 
 too_general = {"raise_exception"}
 
@@ -200,18 +204,16 @@ def extract_call_path_str_for_func_name(function_name):
         sel = term[1]
         call_paths += obtain_terminal_source(rel_fp, sel)
     for called_func in parsed_funcs:
-        call_paths += efb.extract_func_body_linux_path(called_func, "./linux")
+        call_paths += efb.extract_func_body_linux_path(called_func, linux_folder)
     return call_paths
 
 def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
-    
     call_path_list = []
     current_dir = os.path.dirname(os.path.abspath(__file__))
-
+    final_result = ""
     try:
-        analyzer_build_dir = os.path.join(current_dir, '..', 'linuxRepo', 'llvm_kernel_analysis', 'Analyzer', 'build')
-        os.chdir(analyzer_build_dir)
-        cmd = ['./main', function_name]
+        analyzer_build_dir = os.path.join(current_dir, linux_folder, 'llvm_kernel_analysis', 'Analyzer', 'build')
+        cmd = [os.path.join(analyzer_build_dir, "main"), function_name, str(max_depth)]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(f"failed with return code {result.returncode}: {result.stderr}")
@@ -227,7 +229,10 @@ def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
                     path.append(line)
             if path:
                 call_path_list.append(path) 
-        return call_path_list
+        for path in call_path_list:
+            for func_name in path:
+                final_result += efb.extract_func_body_linux_path(func_name,linux_folder)
+        return final_result
     
     finally:
         os.chdir(current_dir)

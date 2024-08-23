@@ -1,4 +1,6 @@
 import os, sys
+
+sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
 import extract_func_body as efb
 
 
