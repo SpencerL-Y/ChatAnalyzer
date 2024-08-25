@@ -99,7 +99,8 @@ class chat_interface:
     def ask_for_function_callgraph_with_body(self, funcname, linux_path):
         description = "Based on your knowledge on linux kernel, what functions in linux kernel could reach the following function: \n"
         function_body = efb.extract_func_body_linux_path(funcname, linux_path)
-        print(function_body)
+        path_source_code_file = open( project_root + "path_source_code.txt", "a+")
+        path_source_code_file.write(function_body)
         description += function_body
         description  += "Generate a list of functions that can reach the above function in the following format: \n[func1, func2, func3, ....]\n the expected output is the above format with NO descriptions"
         answer = self.ask_question_and_record(description)
@@ -111,11 +112,15 @@ class chat_interface:
         description += funcname + "\n"
         # call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
         call_paths = callpath_gen.extract_call_path_str_for_func_name_LLVM(funcname, 5)
+        # print(call_paths)
+        path_source_code_file = open("./path_source_code.txt", "a+")
+        path_source_code_file.write(call_paths)
+        path_source_code_file.close()
         description += call_paths
         description += "Generate a list of syscalls that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
-        print("prompt: " + description)
+        # print("prompt: " + description)
         answer = self.ask_question_and_record(description)
-        print(answer.content)
+        # print(answer.content)
         return answer.content
 
         
@@ -274,12 +279,12 @@ def analyze_syscall_no_history(interface, func_str, curr_call_graph, curr_depth,
         analyze_syscall_no_history(interface, b, curr_call_graph, curr_depth + 1, max_depth, is_init)        
     return
 
-if __name__ == '__main__':
+def old_main():
 
     version1 = False
     version2 = False
     version3 = False
-    experiment_on_chat_syscall_commit_change_analysis = True
+    extract_call_path_for_target_function_and_ask_entries = True
     extract_function = False
     compute_relative_distance = False
     interface = chat_interface()
@@ -287,7 +292,7 @@ if __name__ == '__main__':
     if compute_relative_distance:
         function_name = sys.argv[1]
         callpath_gen.extract_relative_functions_map(function_name)
-    if experiment_on_chat_syscall_commit_change_analysis:
+    if extract_call_path_for_target_function_and_ask_entries:
         function_name = sys.argv[1]
         function_list = [
             #"stable_page_flags", 
@@ -313,8 +318,15 @@ if __name__ == '__main__':
             assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
             unwrap = llm_list_result[1:-1]
             unwrap_list = unwrap.split(",")
+            content_file = open("./syz_comm_content.txt", "a+")
             for item in unwrap_list:
-                print(item.strip())
+                content_file.write(item.strip() + "\n")   
+
+            content_file.close() 
+            signal_file = open("./syz_comm_sig.txt", "w")
+            signal_file.write("1")
+            signal_file.close()
+            # output the result to syz_comm_content and set syz_comm_sig
 
     if extract_function:
         # add function body by function_name list here?
@@ -368,4 +380,55 @@ if __name__ == '__main__':
             print(p)
             mkrel.add_simple_syscall_relation_entries(p[0], p[1])
 
+
+def generate_close_function(funcname, close_steps):
+    analyzer_bin_path = project_root + "linuxRepo/llvm_kernel_analysis/Analyzer/build/"
+    cmd = analyzer_bin_path + "main close " + funcname + " " + str(close_steps) 
+    os.system(cmd)
+
+
+
+if __name__ == "__main__":
+    running_mode = sys.argv[1]
+    interface = chat_interface()
+    interface.set_up_aiproxy_configs()
+    if running_mode == "init":
+        function_name = sys.argv[2]
+        function_list = [
+            #"stable_page_flags", 
+            # "fscontext_create_fd", "memfd_fcntl", "vmap_pages_range", "__sys_setfsgid", "sock_free_inode"
+            function_name
+        ]
+        i = 1
+        for name in function_list:
+            result = ""
+            time_start = time.time()
+            result += str(i) + " syscall analysis for " + name + " : ----------------------------\n"
+            llm_list_result = interface.ask_for_syscalls_can_reach_functions(name)
+            result += llm_list_result
+            # print("RESULT: ")
+            # print(result)
+            time_end = time.time()
+            # print("TIME CONSUMED: " + str(time_end - time_start))
+
+
+            # llm result sanitizing
+            llm_list_result = llm_list_result.strip()
+            assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
+            unwrap = llm_list_result[1:-1]
+            unwrap_list = unwrap.split(",")
+            content_file = open("./syz_comm_content.txt", "a+")
+            for item in unwrap_list:
+                content_file.write(item.strip() + "\n")   
+
+            content_file.close() 
+            signal_file = open("./syz_comm_sig.txt", "w")
+            signal_file.write("1")
+            signal_file.close()
+    elif running_mode == "close":
+        function_name = sys.argv[2]
+        close_steps = sys.argv[3]
+        generate_close_function(function_name, close_steps)
+    else:
+        print("ERROR: running mode not supported, expect init or close_addr")
         

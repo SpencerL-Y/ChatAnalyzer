@@ -213,7 +213,7 @@ def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
     final_result = ""
     try:
         analyzer_build_dir = os.path.join(current_dir, linux_folder, 'llvm_kernel_analysis', 'Analyzer', 'build')
-        cmd = [os.path.join(analyzer_build_dir, "main"), function_name, str(max_depth)]
+        cmd = [os.path.join(analyzer_build_dir, "main"), "target", function_name, str(max_depth)]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise Exception(f"failed with return code {result.returncode}: {result.stderr}")
