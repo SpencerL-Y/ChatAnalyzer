@@ -15,7 +15,7 @@ from openai import OpenAI
 import time
 
 global_model = "gpt-4o"
-secrete = ""
+secrete = "sk-N36YnvEhRBCcRSZnsPfeRF73exfLuqnNVn7FTGktA1U9qbnF"
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -122,8 +122,30 @@ class chat_interface:
         answer = self.ask_question_and_record(description)
         # print(answer.content)
         return answer.content
-
+    
+    def ask_for_syscalls_to_improve(self, target_function_list):
+        description = "The following source code is the relation function calling source code for out target functions in linux kernel: "
+        for func_name in target_function_list:
+            description += func_name + ","
+        description += "\n"
+        path_source_code_file = open("./path_source_code.txt", "r")
+        call_path_source_code = path_source_code_file.read()
+        path_source_code_file.close()
+        description += call_path_source_code
+        description += "\n"
+        description += "During the running fuzzing testing process of linux kernel, we have found the following system call programs can trigger the functions that can reach the some of the target functions: \n"
+        close_cov_prog_source_code_file = open("./close_cov_prog_source_code.txt", "r")
+        syscall_cov_info = close_cov_prog_source_code_file.read()
+        close_cov_prog_source_code_file.close()
+        description += syscall_cov_info
+        description += "\n"
+        description += "Generate a list of system calls that can increase the probability of generating such system calls, the fuzzing process will have higher chance to reach our target functions. Give the list of system calls in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]\n"
+        print(description)
+        answer = self.ask_question_and_record(description)
+        print(answer.content)
+        return answer.content
         
+
     
     def ask_simple_relation_setting_syscall_relation(self, content):
         ask_str = content
@@ -417,6 +439,7 @@ if __name__ == "__main__":
             assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
             unwrap = llm_list_result[1:-1]
             unwrap_list = unwrap.split(",")
+            os.truncate("./syz_comm_content.txt", 0)
             content_file = open("./syz_comm_content.txt", "a+")
             for item in unwrap_list:
                 content_file.write(item.strip() + "\n")   
@@ -429,6 +452,29 @@ if __name__ == "__main__":
         function_name = sys.argv[2]
         close_steps = sys.argv[3]
         generate_close_function(function_name, close_steps)
+    elif running_mode == "close_ask":
+        target_function_list = []
+        target_function_file_path = project_root + "target_functions.txt"
+        target_function_file = open(target_function_file_path, "r")
+        for line in target_function_file.readlines():
+            stripped_target_function = line.strip().replace("\n", "") != ""
+            if stripped_target_function != "":
+                target_function_list.append(stripped_target_function)
+        llm_list_result = interface.ask_for_syscalls_to_improve(target_function_list)
+        llm_list_result = llm_list_result.strip()
+        assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
+        unwrap = llm_list_result[1:-1]
+        unwrap_list = unwrap.split(",")
+        os.truncate("./syz_comm_content.txt", 0)
+        content_file = open("./syz_comm_content.txt", "a+")
+        for item in unwrap_list:
+            syscall = item.strip()
+            content_file.write(item)
+        signal_file = open("./syz_comm_sig.txt", "w")
+        signal_file.write("1")
+        signal_file.close()
+
+
     else:
         print("ERROR: running mode not supported, expect init or close_addr")
         
