@@ -1,0 +1,1 @@
+openat write ioctl socket ppoll quotactl_fd fsopen pkey_alloc mkdirat

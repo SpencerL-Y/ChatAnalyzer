@@ -1,14 +1,9 @@
 import openai
 import os, re
 import sys
-import httpx
 
 sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
 project_root = "/home/clexma/Desktop/fox3/fuzzing/"
-
-from httpx_socks import SyncProxyTransport
-
-# transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
 
 import extract_func_body as efb
 import function_info_arrange as finfo
@@ -20,7 +15,7 @@ from openai import OpenAI
 import time
 
 global_model = "gpt-4o"
-secrete = "sk-N36YnvEhRBCcRSZnsPfeRF73exfLuqnNVn7FTGktA1U9qbnF"
+secrete = "sk-e69OO3NzxVmxaWNO0DUYoeicDgBLt5pUrkedrcXrAxW2uQ4I"
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -41,22 +36,17 @@ class chat_interface:
     
 
     def set_up_aiproxy_configs(self):
-
-        transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
-        httpx_client = httpx.Client(transport=transport, base_url="https://api.aiproxy.io/v1")
         self.client = OpenAI(
-            api_key = secrete,  
-            http_client=httpx_client
+            api_key = secrete,
+            base_url="https://api.aiproxy.io/v1"
         )
 
     # reserved for latter if key for openai can be obtained, currently we are using the aiproxy
     # aiproxy is not free
     def set_up_default_configs(self):
-        transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
-        httpx_client = httpx.Client(transport=transport, base_url="https://api.aiproxy.io/v1")
         self.client = OpenAI(
             api_key = secrete,
-            http_client=httpx_client
+            base_url="https://api.aiproxy.io/v1"
         )
 
     def ask_question_and_record(self, content):
@@ -150,7 +140,9 @@ class chat_interface:
         description += syscall_cov_info
         description += "\n"
         description += "Generate a list of system calls that can increase the probability of generating such system calls, the fuzzing process will have higher chance to reach our target functions. Give the list of system calls in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]\n"
-        print(description)
+        ask_records_file = open(project_root + "ChatAnalyzer/ask_records.txt", "a+")
+        ask_records_file.write(description)
+        ask_records_file.close()
         answer = self.ask_question_and_record(description)
         print(answer.content)
         return answer.content
@@ -468,7 +460,7 @@ if __name__ == "__main__":
         target_function_file_path = project_root + "target_functions.txt"
         target_function_file = open(target_function_file_path, "r")
         for line in target_function_file.readlines():
-            stripped_target_function = line.strip().replace("\n", "") != ""
+            stripped_target_function = line.strip().replace("\n", "")
             if stripped_target_function != "":
                 target_function_list.append(stripped_target_function)
         llm_list_result = interface.ask_for_syscalls_to_improve(target_function_list)
