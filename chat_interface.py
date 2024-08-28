@@ -1,9 +1,14 @@
 import openai
 import os, re
 import sys
+import httpx
 
 sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
 project_root = "/home/clexma/Desktop/fox3/fuzzing/"
+
+from httpx_socks import SyncProxyTransport
+
+# transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
 
 import extract_func_body as efb
 import function_info_arrange as finfo
@@ -36,17 +41,22 @@ class chat_interface:
     
 
     def set_up_aiproxy_configs(self):
+
+        transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
+        httpx_client = httpx.Client(transport=transport, base_url="https://api.aiproxy.io/v1")
         self.client = OpenAI(
-            api_key = secrete,
-            base_url="https://api.aiproxy.io/v1"
+            api_key = secrete,  
+            http_client=httpx_client
         )
 
     # reserved for latter if key for openai can be obtained, currently we are using the aiproxy
     # aiproxy is not free
     def set_up_default_configs(self):
+        transport = SyncProxyTransport.from_url("socks5://127.0.0.1:7891/")
+        httpx_client = httpx.Client(transport=transport, base_url="https://api.aiproxy.io/v1")
         self.client = OpenAI(
             api_key = secrete,
-            base_url="https://api.aiproxy.io/v1"
+            http_client=httpx_client
         )
 
     def ask_question_and_record(self, content):
@@ -342,6 +352,7 @@ def old_main():
             unwrap_list = unwrap.split(",")
             content_file = open("./syz_comm_content.txt", "a+")
             for item in unwrap_list:
+                print(item.strip())
                 content_file.write(item.strip() + "\n")   
 
             content_file.close() 
@@ -439,15 +450,15 @@ if __name__ == "__main__":
             assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
             unwrap = llm_list_result[1:-1]
             unwrap_list = unwrap.split(",")
-            os.truncate("./syz_comm_content.txt", 0)
             content_file = open("./syz_comm_content.txt", "a+")
             for item in unwrap_list:
+                print(item.strip())
                 content_file.write(item.strip() + "\n")   
 
             content_file.close() 
-            signal_file = open("./syz_comm_sig.txt", "w")
-            signal_file.write("1")
-            signal_file.close()
+        signal_file = open("./syz_comm_sig.txt", "w")
+        signal_file.write("1")
+        signal_file.close()
     elif running_mode == "close":
         function_name = sys.argv[2]
         close_steps = sys.argv[3]
