@@ -1,6 +1,7 @@
 import openai
 import os, re
 import sys
+import tiktoken
 
 sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
 project_root = "/home/clexma/Desktop/fox3/fuzzing/"
@@ -15,7 +16,14 @@ from openai import OpenAI
 import time
 
 global_model = "gpt-4o"
-secrete = "sk-e69OO3NzxVmxaWNO0DUYoeicDgBLt5pUrkedrcXrAxW2uQ4I"
+secrete = ""
+
+
+def num_token_from_string(str):
+    encoding = tiktoken.get_encoding('cl100k_base')
+    num_token = len(encoding.encode(str))
+    return num_token
+
 # chat interface 
 class chat_interface:
     def __init__(self) -> None:
@@ -113,6 +121,13 @@ class chat_interface:
         # call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
         call_paths = callpath_gen.extract_call_path_str_for_func_name_LLVM(funcname, 5)
         # print(call_paths)
+
+        token_num = num_token_from_string(call_paths)
+        if token_num > 25000:
+            self.too_long = True
+        else:
+            self.too_long = False
+        
         path_source_code_file = open("./path_source_code.txt", "a+")
         path_source_code_file.write(call_paths)
         path_source_code_file.close()
@@ -431,11 +446,13 @@ if __name__ == "__main__":
             result += str(i) + " syscall analysis for " + name + " : ----------------------------\n"
             llm_list_result = interface.ask_for_syscalls_can_reach_functions(name)
             result += llm_list_result
-            # print("RESULT: ")
-            # print(result)
+            print(result)
             time_end = time.time()
             # print("TIME CONSUMED: " + str(time_end - time_start))
 
+            # limit test
+            if interface.too_long:
+                print("Source code too long: HALT!!")
 
             # llm result sanitizing
             llm_list_result = llm_list_result.strip()
@@ -472,7 +489,7 @@ if __name__ == "__main__":
         content_file = open("./syz_comm_content.txt", "a+")
         for item in unwrap_list:
             syscall = item.strip()
-            content_file.write(item)
+            content_file.write(syscall + "\n")
         signal_file = open("./syz_comm_sig.txt", "w")
         signal_file.write("1")
         signal_file.close()
