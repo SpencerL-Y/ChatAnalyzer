@@ -453,41 +453,35 @@ if __name__ == "__main__":
             assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
             unwrap = llm_list_result[1:-1]
             unwrap_list = unwrap.split(",")
-            content_file = open("./syz_comm_content.txt", "a+")
             print("Init LLM result:")
             for item in unwrap_list:
-                print(item.strip())
-                content_file.write(item.strip() + "\n")   
+                print(item.strip()) 
 
-            content_file.close() 
-        signal_file = open("./syz_comm_sig.txt", "w")
-        signal_file.write("1")
-        signal_file.close()
-    elif running_mode == "close":
-        function_name = sys.argv[2]
-        close_steps = sys.argv[3]
-        generate_close_function(function_name, close_steps)
-    elif running_mode == "close_ask":
-        target_function_list = []
-        target_function_file_path = project_root + "target_functions.txt"
-        target_function_file = open(target_function_file_path, "r")
-        for line in target_function_file.readlines():
-            stripped_target_function = line.strip().replace("\n", "")
-            if stripped_target_function != "":
-                target_function_list.append(stripped_target_function)
-        llm_list_result = interface.ask_for_syscalls_to_improve(target_function_list)
-        llm_list_result = llm_list_result.strip()
-        assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
-        unwrap = llm_list_result[1:-1]
-        unwrap_list = unwrap.split(",")
-        os.truncate("./syz_comm_content.txt", 0)
-        content_file = open("./syz_comm_content.txt", "a+")
-        for item in unwrap_list:
-            syscall = item.strip()
-            content_file.write(syscall + "\n")
-        signal_file = open("./syz_comm_sig.txt", "w")
-        signal_file.write("1")
-        signal_file.close()
+    # elif running_mode == "close":
+    #     function_name = sys.argv[2]
+    #     close_steps = sys.argv[3]
+    #     generate_close_function(function_name, close_steps)
+    # elif running_mode == "close_ask":
+    #     target_function_list = []
+    #     target_function_file_path = project_root + "target_functions.txt"
+    #     target_function_file = open(target_function_file_path, "r")
+    #     for line in target_function_file.readlines():
+    #         stripped_target_function = line.strip().replace("\n", "")
+    #         if stripped_target_function != "":
+    #             target_function_list.append(stripped_target_function)
+    #     llm_list_result = interface.ask_for_syscalls_to_improve(target_function_list)
+    #     llm_list_result = llm_list_result.strip()
+    #     assert(llm_list_result[0] == "[" and llm_list_result[-1] == "]")
+    #     unwrap = llm_list_result[1:-1]
+    #     unwrap_list = unwrap.split(",")
+    #     os.truncate("./syz_comm_content.txt", 0)
+    #     content_file = open("./syz_comm_content.txt", "a+")
+    #     for item in unwrap_list:
+    #         syscall = item.strip()
+    #         content_file.write(syscall + "\n")
+    #     signal_file = open("./syz_comm_sig.txt", "w")
+    #     signal_file.write("1")
+    #     signal_file.close()
 
 
     else:

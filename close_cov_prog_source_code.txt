@@ -1,0 +1,68 @@
+Program 1 in system call sequence is: 
+(0) socket$inet6_tcp
+(1) setsockopt$inet6_tcp_TCP_REPAIR_QUEUE
+(2) ioctl$FS_IOC_FSGETXATTR
+(3) keyctl$negate
+(4) msgctl$IPC_STAT
+(5) socket$inet6_icmp_raw
+(6) setsockopt$inet6_mreq
+(7) socket$inet6
+(8) sendmmsg$inet6
+Argument sequence correspond to Program 1 is: 
+(0) const[10, const], const[1, const], const[0, const], 
+(1) sock_tcp6, const[6, const], const[20, const], ptr[in, tcp_repair_queue_modes], len, 
+(2) fd, const[2149341215, const], ptr[in, fsxattr], 
+(3) const[13, const], key, intptr, keyring, 
+(4) ipc_msq, const[2, const], ptr[out, buffer], 
+(5) const[10, const], const[3, const], const[58, const], 
+(6) sock_in6, const[41, const], sockopt_opt_ipv6_mreq, ptr[in, ipv6_mreq], len, 
+(7) const[10, const], socket_type, int32, 
+(8) sock_in6, ptr[in, array[mmsghdr_inet6]], len, send_flags, 
+Program 1 has coverage: 
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/sock.c
+sock_alloc_send_pskb
+skb_set_owner_w(skb, sk);
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/skbuff.c
+alloc_skb_with_frags
+}
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/sock.c
+sock_alloc_send_pskb
+{
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/skbuff.c
+alloc_skb_with_frags
+if (unlikely(data_len > MAX_SKB_FRAGS * (PAGE_SIZE << order)))
+
+Program 1 in system call sequence is: 
+(0) socket$inet6_tcp
+(1) setsockopt$inet6_tcp_TCP_REPAIR_QUEUE
+(2) ioctl$FS_IOC_FSGETXATTR
+(3) keyctl$negate
+(4) msgctl$IPC_STAT
+(5) socket$inet6_icmp_raw
+(6) setsockopt$inet6_mreq
+(7) socket$inet6
+(8) sendmmsg$inet6
+Argument sequence correspond to Program 1 is: 
+(0) const[10, const], const[1, const], const[0, const], 
+(1) sock_tcp6, const[6, const], const[20, const], ptr[in, tcp_repair_queue_modes], len, 
+(2) fd, const[2149341215, const], ptr[in, fsxattr], 
+(3) const[13, const], key, intptr, keyring, 
+(4) ipc_msq, const[2, const], ptr[out, buffer], 
+(5) const[10, const], const[3, const], const[58, const], 
+(6) sock_in6, const[41, const], sockopt_opt_ipv6_mreq, ptr[in, ipv6_mreq], len, 
+(7) const[10, const], socket_type, int32, 
+(8) sock_in6, ptr[in, array[mmsghdr_inet6]], len, send_flags, 
+Program 1 has coverage: 
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/skbuff.c
+alloc_skb_with_frags
+}
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/skbuff.c
+alloc_skb_with_frags
+if (unlikely(data_len > MAX_SKB_FRAGS * (PAGE_SIZE << order)))
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/sock.c
+sock_alloc_send_pskb
+{
+/home/clexma/Desktop/fox3/fuzzing/linuxRepo//linux_new/net/core/sock.c
+sock_alloc_send_pskb
+skb_set_owner_w(skb, sk);
+
