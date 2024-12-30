@@ -131,7 +131,28 @@ class chat_interface:
         answer = self.ask_question_and_record(description)
         # print(answer.content)
         return answer.content
-    
+
+    def ask_for_syscalls_can_reach_functions_few_shots_baseline_data(self, funcname, call_paths):
+        description = "Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: \n"
+        description += funcname + "\n"
+        description += call_paths
+        description += "Generate a list of syscalls that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        # print("prompt: " + description)
+        answer = self.ask_question_and_record(description)
+        # print(answer.content)
+        return answer.content
+
+
+
+    def ask_for_syscalls_can_reach_functions_few_shots_data(self, func_name, shots):
+        description = "System call entrances that can reach target function below is provided by LLM based  knowledge on linux kernel and the following provided related function calling source code. \n"
+        description += shots + "\n"
+        description += "Generate a list of syscalls that can reach the function " + func_name + " just like the examples above in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        # print("prompt: " + description)
+        answer = self.ask_question_and_record(description)
+        # print(answer.content)
+        return answer.content
+
     def ask_for_syscalls_to_improve(self, target_function_list):
         description = "The following source code is the relation function calling source code for out target functions in linux kernel: "
         for func_name in target_function_list:
@@ -488,8 +509,121 @@ if __name__ == "__main__":
         signal_file = open("./syz_comm_sig.txt", "w")
         signal_file.write("1")
         signal_file.close()
+    elif  running_mode == "few_shot_entrance_base":
+        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
+        few_shot_case_ids = [2, 10, 23]
+        few_shots_result = ""
+        for case_id in few_shot_case_ids:
+            path_source_code_path = folder + "/" + str(case_id) + "/path_source_code.txt"
+            target_functions_path = folder + "/" + str(case_id) + "/target_functions.txt"
+            print("few shot data obtaining: " + path_source_code_path)
+            source_code_file = open(path_source_code_path, "r")
+            source_code = source_code_file.read()
+            source_code_file.close()
+            target_functions_file = open(target_functions_path, "r")
+            target_functions = target_functions_file.read()
+            target_functions_file.close()
+            llm_list_result = interface.ask_for_syscalls_can_reach_functions_few_shots_baseline_data(target_functions, source_code)
+            few_shot_record = "\nfunction name: " + target_functions
+            few_shot_record += "\ncode: " + source_code
+            few_shot_record += "\nresult: "
+            for syscall in llm_list_result:
+                few_shot_record += syscall
+            few_shots_result += few_shot_record
 
-
+        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        dest_file_close = dest_path + "/shots.txt"
+        dest_file = open(dest_file_close, "w")
+        dest_file.write(few_shots_result)
+        dest_file.close()
+    
+    elif running_mode == "few_shot_entrance_exp":
+        baseline = True
+        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
+        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        exp_case_ids = [4,5,7,8,11,13,15,17,18,25,26,29,35,40]
+        shots_path = dest_path + "/shots.txt"
+        content_path = dest_path + "/compare.txt"
+        content_file = open(content_path, "w")
+        shots_file = open(shots_path, "r")
+        shots_str = shots_file.read()
+        shots_file.close()
+        result = ""
+        for case_id in exp_case_ids:
+            result += "\ncase id: " + str(case_id) + "\n"
+            path_source_code_path = folder + "/" + str(case_id) + "/path_source_code.txt"
+            target_functions_path = folder + "/" + str(case_id) + "/target_functions.txt"
+            print("few shot data obtaining: " + path_source_code_path)
+            source_code_file = open(path_source_code_path, "r")
+            source_code = source_code_file.read()
+            source_code_file.close()
+            target_functions_file = open(target_functions_path, "r")
+            target_functions = target_functions_file.read()
+            target_functions_file.close()
+            base_llm_list_result = interface.ask_for_syscalls_can_reach_functions_few_shots_baseline_data(target_functions, source_code)
+            baseline_record = "\nfunction name: " + target_functions
+            # few_shot_record += "code: " + source_code
+            baseline_record += "result: "
+            for syscall in base_llm_list_result:
+                baseline_record += syscall
+            few_shots_list_result = interface.ask_for_syscalls_can_reach_functions_few_shots_data(target_functions, shots_str)
+            
+            few_shots_record = ""
+            # "\nfunction name: " + target_functions
+            # few_shot_record += "code: " + source_code
+            few_shots_record += "result: "
+            for syscall in few_shots_list_result:
+                few_shots_record += syscall
+            result += baseline_record
+            result += few_shots_record
+        content_file.write(result)
+        content_file.close()
+    
+    elif running_mode == "few_shot_related_exp":
+        baseline = True
+        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
+        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        exp_case_ids = [4,5,7,8,11,13,15,17,18,25,26,29,35,40]
+        shots_path = dest_path + "/shots.txt"
+        content_path = dest_path + "/compare.txt"
+        content_file = open(content_path, "w")
+        shots_file = open(shots_path, "r")
+        shots_str = shots_file.read()
+        shots_file.close()
+        result = ""
+        for case_id in exp_case_ids:
+            result += "\ncase id: " + str(case_id) + "\n"
+            path_source_code_path = folder + "/" + str(case_id) + "/path_source_code.txt"
+            target_functions_path = folder + "/" + str(case_id) + "/target_functions.txt"
+            print("few shot data obtaining: " + path_source_code_path)
+            source_code_file = open(path_source_code_path, "r")
+            source_code = source_code_file.read()
+            source_code_file.close()
+            target_functions_file = open(target_functions_path, "r")
+            target_functions = target_functions_file.read()
+            target_functions_file.close()
+            base_llm_list_result = interface.ask_for_syscalls_can_reach_functions_few_shots_baseline_data(target_functions, source_code)
+            baseline_record = "\nfunction name: " + target_functions
+            # few_shot_record += "code: " + source_code
+            baseline_record += "result: "
+            for syscall in base_llm_list_result:
+                baseline_record += syscall
+            few_shots_list_result = interface.ask_for_syscalls_can_reach_functions_few_shots_data(target_functions, shots_str)
+            
+            few_shots_record = ""
+            # "\nfunction name: " + target_functions
+            # few_shot_record += "code: " + source_code
+            few_shots_record += "result: "
+            for syscall in few_shots_list_result:
+                few_shots_record += syscall
+            result += baseline_record
+            result += few_shots_record
+        content_file.write(result)
+        content_file.close()
+    elif running_mode == "analyze_extract_fb":
+        # TODO: add func_nameq
+        linux_folder = os.path.join(project_root, "linuxRepo/")
+        efb.extract_func_body_linux_path_analyze(func_name, linux_folder)
     else:
         print("ERROR: running mode not supported, expect init or close_addr")
         
