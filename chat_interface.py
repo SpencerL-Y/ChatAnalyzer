@@ -3,6 +3,7 @@ import os, re
 import sys
 
 sys.path.insert(0, os.path.abspath('/home/clexma/Desktop/fox3/fuzzing/ChatAnalyzer'))
+
 project_root = "/home/clexma/Desktop/fox3/fuzzing/"
 
 import extract_func_body as efb
@@ -510,7 +511,7 @@ if __name__ == "__main__":
         signal_file.write("1")
         signal_file.close()
     elif  running_mode == "few_shot_entrance_base":
-        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
+        folder = project_root + "/experiment_result/enable_batch_3"
         few_shot_case_ids = [2, 10, 23]
         few_shots_result = ""
         for case_id in few_shot_case_ids:
@@ -531,7 +532,7 @@ if __name__ == "__main__":
                 few_shot_record += syscall
             few_shots_result += few_shot_record
 
-        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        dest_path = project_root + "/experiment_result/few_shot_entrance"
         dest_file_close = dest_path + "/shots.txt"
         dest_file = open(dest_file_close, "w")
         dest_file.write(few_shots_result)
@@ -539,8 +540,8 @@ if __name__ == "__main__":
     
     elif running_mode == "few_shot_entrance_exp":
         baseline = True
-        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
-        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        folder = project_root + "/experiment_result/enable_batch_3"
+        dest_path = project_root + "/experiment_result/few_shot_entrance"
         exp_case_ids = [4,5,7,8,11,13,15,17,18,25,26,29,35,40]
         shots_path = dest_path + "/shots.txt"
         content_path = dest_path + "/compare.txt"
@@ -581,8 +582,8 @@ if __name__ == "__main__":
     
     elif running_mode == "few_shot_related_exp":
         baseline = True
-        folder = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/enable_batch_3"
-        dest_path = "/home/clexma/Desktop/fox3/fuzzing/experiment_result/few_shot_entrance"
+        folder = project_root + "/experiment_result/enable_batch_3"
+        dest_path = project_root + "/experiment_result/few_shot_entrance"
         exp_case_ids = [4,5,7,8,11,13,15,17,18,25,26,29,35,40]
         shots_path = dest_path + "/shots.txt"
         content_path = dest_path + "/compare.txt"

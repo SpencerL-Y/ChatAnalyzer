@@ -1,0 +1,6 @@
+getxattr
+lsetxattr
+setxattr
+fsetxattr
+removexattr
+lremovexattr

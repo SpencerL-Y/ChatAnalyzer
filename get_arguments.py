@@ -14,7 +14,7 @@ def get_funcname_firstline_linux_folder(function_name, linux_folder):
             final = latter[:-4]
             # print(linux_folder + items[1][1:])
             # print(final)
-            return [linux_folder + items[1][1:], final]
+            return [linux_folder + items[1][0:], final]
     return ["NOT FOUND", "NOT_FOUND"]
 
 def get_funcname_firstline_linux_folder_analyze(function_name, linux_folder):
@@ -28,7 +28,7 @@ def get_funcname_firstline_linux_folder_analyze(function_name, linux_folder):
             final = latter[:-4]
             # print(linux_folder + items[1][1:])
             # print(final)
-            return [linux_folder + items[1][1:], final]
+            return [linux_folder + items[1][0:], final]
     return ["NOT FOUND", "NOT_FOUND"]
     
 if __name__ == "__main__":
