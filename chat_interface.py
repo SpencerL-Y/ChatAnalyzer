@@ -17,11 +17,11 @@ import tiktoken
 from openai import OpenAI
 import time
 
-global_model = gpt4o_name
 
 o4mini_name = "openai/o4-mini-2025-04-16"
 gpt4o_name = "openai/gpt-4o"
 
+global_model = gpt4o_name
 secrete = utils.load_api_key()
 
 
