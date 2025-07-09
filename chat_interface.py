@@ -1,4 +1,4 @@
-import openai
+
 import os, re
 import sys
 
@@ -12,11 +12,17 @@ import make_syscall_and_relation_file as mkrel
 import function_call_graph as fcg
 import relation_parser as rel_parser
 import extract_function_callpaths as callpath_gen
+import utils 
+import tiktoken
 from openai import OpenAI
 import time
 
-global_model = "gpt-4o"
-secrete = ""
+global_model = gpt4o_name
+
+o4mini_name = "openai/o4-mini-2025-04-16"
+gpt4o_name = "openai/gpt-4o"
+
+secrete = utils.load_api_key()
 
 
 def num_token_from_string(str):
@@ -51,11 +57,16 @@ class chat_interface:
 
     # reserved for latter if key for openai can be obtained, currently we are using the aiproxy
     # aiproxy is not free
-    def set_up_default_configs(self):
+
+    def set_up_openrouter_configs(self):
         self.client = OpenAI(
-            api_key = secrete,
-            base_url="https://api.aiproxy.io/v1"
+            api_key=secrete,
+            base_url="https://openrouter.ai/api/v1"
         )
+
+
+    def set_up_default_configs(self):
+        self.set_up_openrouter_configs()
 
     def ask_question_and_record(self, content):
         self.msg_list.append({"role": "user", "content": content})
@@ -115,7 +126,7 @@ class chat_interface:
         print(answer)
         return answer
     
-    def ask_for_syscalls_can_reach_functions(self, funcname):
+    def ask_for_syscalls_can_reach_functions_llm_static(self, funcname):
         description = "Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: \n"
         description += funcname + "\n"
         # call_paths = callpath_gen.extract_call_path_str_for_func_name(funcname)
@@ -132,6 +143,26 @@ class chat_interface:
         answer = self.ask_question_and_record(description)
         # print(answer.content)
         return answer.content
+    
+    def ask_for_syscalls_can_reach_functions_llm(self, funcname):
+        description = "Based on your knowledge on linux kernel, what system calls may reach the following function: \n"
+        description += funcname + "\n"
+        description += "Generate a list of syscalls that can reach the function in the following format: \n[syscall1, syscall2, syscall3, ...]\n, the expected output is the above format with NO descriptions, for example one possible  example output is: [read, write, mmap]"
+        # print("prompt: " + description)
+        answer = self.ask_question_and_record(description)
+        # print(answer.content)
+        return answer.content
+
+    def ask_for_syscalls_can_reach_functions_static(self, funcname):
+        # TODO to implement
+        
+        pass
+
+    def ask_for_syscalls_can_reach_functions_nochange(self, funcname):
+        # TODO to implement
+        return "[]"
+
+
 
     def ask_for_syscalls_can_reach_functions_few_shots_baseline_data(self, funcname, call_paths):
         description = "Based on your knowledge on linux kernel and the following provided related function calling source code, what syscall may reach the following function: \n"
@@ -203,7 +234,7 @@ class chat_interface:
     def ask_analyze_function(self, content):
         ask_str = "analyze this function: \n" + content
         self.msg_list.append({"role": "user", "content": ask_str})
-        res = openai.chat.completions.create(
+        res = self.client.chat.completions.create(
             model=global_model,
             messages=self.msg_list
         )
@@ -360,7 +391,7 @@ def old_main():
             result = ""
             time_start = time.time()
             result += str(i) + " syscall analysis for " + name + " : ----------------------------\n"
-            llm_list_result = interface.ask_for_syscalls_can_reach_functions(name)
+            llm_list_result = interface.ask_for_syscalls_can_reach_functions_llm_static(name)
             result += llm_list_result
             # print("RESULT: ")
             # print(result)
@@ -460,7 +491,7 @@ if __name__ == "__main__":
             result = ""
             time_start = time.time()
             result += str(i) + " syscall analysis for " + name + " : ----------------------------\n"
-            llm_list_result = interface.ask_for_syscalls_can_reach_functions(name)
+            llm_list_result = interface.ask_for_syscalls_can_reach_functions_llm_static(name)
             result += llm_list_result
             print(result)
             time_end = time.time()
@@ -621,6 +652,11 @@ if __name__ == "__main__":
             result += few_shots_record
         content_file.write(result)
         content_file.close()
+    elif running_mode == "asking_question":
+        content = "what is your name?"
+        print("here")
+        answer = interface.ask_question_and_record(content)
+        print(answer)
     elif running_mode == "analyze_extract_fb":
         # TODO: add func_nameq
         linux_folder = os.path.join(project_root, "linuxRepo/")

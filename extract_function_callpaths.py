@@ -207,12 +207,13 @@ def extract_call_path_str_for_func_name(function_name):
         call_paths += efb.extract_func_body_linux_path(called_func, linux_folder)
     return call_paths
 
+
+# TODO: check
 def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
     call_path_list = []
-    current_dir = os.path.dirname(os.path.abspath(__file__))
     final_result = ""
     try:
-        analyzer_build_dir = os.path.join(current_dir, linux_folder, 'llvm_kernel_analysis', 'Analyzer', 'build')
+        analyzer_build_dir = os.path.join(linux_folder, 'llvm_kernel_analysis', 'Analyzer', 'build')
         cmd = [os.path.join(analyzer_build_dir, "main"), "target", function_name, str(max_depth)]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -235,7 +236,7 @@ def extract_call_path_str_for_func_name_LLVM(function_name, max_depth):
         return final_result
     
     finally:
-        os.chdir(current_dir)
+        pass
 
 
 def obtain_terminal_source(relative_file_path, start_end_list):
@@ -252,6 +253,28 @@ def obtain_terminal_source(relative_file_path, start_end_list):
         if curr_line_num > end:
             break
     return result
+
+# TODO: syscall entry
+def extract_syscall_entries_list_for_func_name_LLVM(function_name):
+    syscall_entries_list = []
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        analyzer_build_dir = os.path.join(current_dir, linux_folder, 'llvm_kernel_analysis', 'Analyzer', 'build')
+        cmd = [os.path.join(analyzer_build_dir, "main"), "static_entry", function_name]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(f"failed with return code {result.returncode}: {result.stderr}")
+        with open('staticEntriesFile.txt', 'r') as lines:
+            for line in lines:
+                line = line.strip()
+                syscall_entries_list.append(line)
+        return syscall_entries_list
+    
+    finally:
+        os.chdir(current_dir)
+
+
+
 if __name__ == "__main__":
     function_name = sys.argv[1]
     # curr_function_name = function_name
