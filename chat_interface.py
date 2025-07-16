@@ -155,8 +155,13 @@ class chat_interface:
 
     def ask_for_syscalls_can_reach_functions_static(self, funcname):
         # TODO to implement
+        call_entries = callpath_gen.extract_syscall_entries_list_for_func_name_LLVM(funcname)
+        result_str = "["
+        for i in range(len(call_entries) - 1):
+            result_str = result_str + call_entries[i] + ","
+        result_str = result_str + call_entries[len(call_entries) - 1] + "]"
+        return result_str
         
-        pass
 
     def ask_for_syscalls_can_reach_functions_nochange(self, funcname):
         # TODO to implement
